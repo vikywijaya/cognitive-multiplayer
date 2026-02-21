@@ -323,6 +323,9 @@ module.exports = function wireEvents(io) {
           if (winPlayer) leaderboard.recordWin(gameType, winPlayer.name);
         }
         analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: payload.winner, gameType });
+        // Clean up engine so play_again / rematch is possible
+        engines.delete(roomId);
+        roomGameTypes.delete(roomId);
       }
     });
 
@@ -506,6 +509,26 @@ module.exports = function wireEvents(io) {
       engines.delete(roomId);
       roomGameTypes.delete(roomId);
       analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner, reason: 'resign' });
+    });
+
+    // ── Play again ──────────────────────────────────────────────────
+    socket.on('play_again', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      // Clear any running Boggle timer
+      if (boggleTimers.has(roomId)) {
+        clearTimeout(boggleTimers.get(roomId));
+        boggleTimers.delete(roomId);
+      }
+      // Clear engine so start_game can run fresh
+      engines.delete(roomId);
+      roomGameTypes.delete(roomId);
+
+      // Tell everyone to return to the waiting screen
+      io.to(roomId).emit('play_again');
     });
 
     // ── Disconnect ──────────────────────────────────────────────────

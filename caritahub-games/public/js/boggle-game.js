@@ -47,6 +47,7 @@ const endRoundBtn      = document.getElementById('endRoundBtn');
 const resultsOverlay   = document.getElementById('resultsOverlay');
 const resultsTitle     = document.getElementById('resultsTitle');
 const resultsBody      = document.getElementById('resultsBody');
+const playAgainBtn     = document.getElementById('playAgainBtn');
 const reconnectOverlay = document.getElementById('reconnectOverlay');
 
 // ── Socket ───────────────────────────────────────────────────────────────────
@@ -97,6 +98,32 @@ socket.on('game_over', ({ winner, reason }) => {
   gameActive = false;
   stopTimer();
   setTimeout(() => showResults(reason), 400);
+});
+
+socket.on('play_again', () => {
+  // Reset all local state and return to waiting screen
+  gameActive = false;
+  gameState  = null;
+  board      = [];
+  stopTimer();
+  foundWords.length = 0;
+  clearSelection();
+  wordInput.value   = '';
+  wordInput.disabled = false;
+  submitWordBtn.disabled = true;
+  endRoundWrap.classList.add('hidden');
+  resultsOverlay.classList.add('hidden');
+  gameUI.classList.add('hidden');
+  waitingOverlay.classList.remove('hidden');
+  waitingMsg.textContent = 'Waiting for game to start…';
+  boggleBoardEl.innerHTML = '';
+  boggleFound.innerHTML   = '';
+  if (boggleFoundScore) boggleFoundScore.textContent = '0 pts';
+  bogglePlayers.innerHTML = '';
+});
+
+playAgainBtn.addEventListener('click', () => {
+  socket.emit('play_again');
 });
 
 socket.on('connect_error', () => reconnectOverlay.classList.remove('hidden'));

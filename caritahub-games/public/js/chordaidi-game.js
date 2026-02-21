@@ -29,6 +29,7 @@ const passBtn          = document.getElementById('passBtn');
 const gameOverOverlay  = document.getElementById('gameOverOverlay');
 const gameOverTitle    = document.getElementById('gameOverTitle');
 const gameOverMsg      = document.getElementById('gameOverMsg');
+const playAgainBtn     = document.getElementById('playAgainBtn');
 const backLobbyBtn     = document.getElementById('backLobbyBtn');
 const reconnectOverlay = document.getElementById('reconnectOverlay');
 const reconnectMsg     = document.getElementById('reconnectMsg');
@@ -75,6 +76,21 @@ socket.on('game_state',   state => applyState(state));
 socket.on('invalid_move', ({ reason }) => flashStatus(`Invalid: ${reason}`, 3000));
 
 socket.on('game_over', ({ winner, reason }) => showGameOver(winner, reason));
+
+socket.on('play_again', () => {
+  gameActive = false;
+  myTurn = false;
+  myHand = [];
+  selected.clear();
+  gameState = null;
+  gameOverOverlay.classList.add('hidden');
+  cdiPlayersEl.innerHTML = '';
+  cdiTableCardsEl.innerHTML = '';
+  cdiComboTypeEl.classList.add('hidden');
+  myHandEl.innerHTML = '';
+  updateActions();
+  statusBar.textContent = 'Waiting for host to start…';
+});
 
 socket.on('player_disconnected', ({ playerName }) =>
   flashStatus(`${playerName} disconnected. Waiting…`, 0));
@@ -215,6 +231,7 @@ passBtn.addEventListener('click', () => {
   socket.emit('cdi_pass');
 });
 
+playAgainBtn.addEventListener('click', () => { socket.emit('play_again'); });
 backLobbyBtn.addEventListener('click', () => { window.location.href = '/'; });
 
 // ── Game over ──────────────────────────────────────────────────────────────

@@ -34,6 +34,7 @@ const cancelResignBtn = document.getElementById('cancelResignBtn');
 const gameOverOverlay = document.getElementById('gameOverOverlay');
 const gameOverTitle   = document.getElementById('gameOverTitle');
 const gameOverMsg     = document.getElementById('gameOverMsg');
+const playAgainBtn    = document.getElementById('playAgainBtn');
 const backLobbyBtn    = document.getElementById('backLobbyBtn');
 
 const reconnectOverlay = document.getElementById('reconnectOverlay');
@@ -150,6 +151,17 @@ socket.on('undo_declined', () => flashStatus('Undo declined by opponent.', 2500)
 
 socket.on('game_over', ({ winner, reason }) => showGameOver(winner, reason));
 
+socket.on('play_again', () => {
+  gameActive = false;
+  myTurn = false;
+  currentBoard = null;
+  currentFenState = null;
+  gameOverOverlay.classList.add('hidden');
+  statusBar.classList.remove('check', 'game-over');
+  statusBar.textContent = 'Waiting for host to start…';
+  undoBtn.disabled = true;
+});
+
 socket.on('player_disconnected', ({ playerName }) =>
   flashStatus(`${playerName} disconnected. Waiting for reconnection…`, 0));
 
@@ -240,6 +252,7 @@ declineUndoBtn.addEventListener('click', () => {
   undoOverlay.classList.add('hidden');
   socket.emit('decline_undo');
 });
+playAgainBtn.addEventListener('click', () => { socket.emit('play_again'); });
 backLobbyBtn.addEventListener('click', () => { window.location.href = '/lobby.html?game=chess'; });
 
 // ── Resize ────────────────────────────────────────────────────────────

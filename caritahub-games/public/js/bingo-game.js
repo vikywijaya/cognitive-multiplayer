@@ -93,6 +93,18 @@ socket.on('game_over', ({ winner, reason }) => {
   callBtn.classList.remove('bingo-ready');
 });
 
+socket.on('play_again', () => {
+  gameActive = false;
+  gameState  = null;
+  gameOverOverlay.classList.add('hidden');
+  gameUI.classList.add('hidden');
+  waitingOverlay.classList.remove('hidden');
+  waitingMsg.textContent = 'Waiting for game to start…';
+  callerPanel.classList.add('hidden');
+  callBtn.disabled = true;
+  callBtn.classList.remove('bingo-ready');
+});
+
 socket.on('player_disconnected', ({ playerName }) => {
   statusBar.textContent = `${playerName} disconnected…`;
 });
@@ -114,6 +126,11 @@ callBtn.addEventListener('click', () => {
   callBtn.disabled = true;
   callBtn.classList.remove('bingo-ready');
   socket.emit('bingo_call');
+});
+
+// ── Play again button ─────────────────────────────────────────────────────────
+document.getElementById('playAgainBtn').addEventListener('click', () => {
+  socket.emit('play_again');
 });
 
 // ── State application ─────────────────────────────────────────────────────────
