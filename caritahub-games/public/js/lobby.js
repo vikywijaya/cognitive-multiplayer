@@ -46,10 +46,17 @@ const GAMES = {
   },
   boggle: {
     title: 'CaritaHub Boggle',
-    subtitle: 'Word Hunt — 2 to 4 Players, 3-min round',
+    subtitle: 'Word Hunt — 2 to 4 Players, 1-min round',
     gamePage: '/boggle-game.html',
     maxPlayers: 2,
     hostColors: ['red']
+  },
+  'singapore-trivia': {
+    title: 'Singapore Trivia',
+    subtitle: 'SG Quiz — 2 to 6 Players, 10 Questions',
+    gamePage: '/singapore-trivia-game.html',
+    maxPlayers: 2,
+    hostColors: ['p1']
   }
 };
 
@@ -169,7 +176,7 @@ function colorDisplayName(color) {
   const map = {
     red: 'Red', white: 'White', black: 'Black',
     south: 'South', west: 'West', north: 'North', east: 'East',
-    caller: 'Caller', p2: 'Player 2', p3: 'Player 3', p4: 'Player 4',
+    caller: 'Caller', p1: 'Player 1', p2: 'Player 2', p3: 'Player 3', p4: 'Player 4',
     p5: 'Player 5', p6: 'Player 6', p7: 'Player 7', p8: 'Player 8',
     red: 'Red', blue: 'Blue', green: 'Green', purple: 'Purple'
   };

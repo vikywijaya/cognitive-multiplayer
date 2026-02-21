@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Singapore Trivia</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="header-inner">
+        <div class="header-nav"><a href="/" class="back-link">← All Games</a></div>
+        <h1>🇸🇬 Singapore Trivia</h1>
+        <p class="subtitle" id="statusBar">Connecting…</p>
+      </div>
+    </header>
+
+    <main id="triviaApp">
+
+      <!-- Waiting overlay -->
+      <div id="waitingOverlay" class="overlay-card">
+        <p id="waitingMsg">Waiting for game to start…</p>
+      </div>
+
+      <!-- Game UI -->
+      <div id="gameUI" class="hidden">
+
+        <!-- Players / scores strip -->
+        <div id="triviaPlayers" class="trivia-players"></div>
+
+        <!-- Question progress bar -->
+        <div class="trivia-progress-wrap">
+          <div class="trivia-progress-bar">
+            <div id="triviaProgressFill" class="trivia-progress-fill" style="width:0%"></div>
+          </div>
+          <span id="triviaQNum" class="trivia-qnum">Q 1 / 10</span>
+        </div>
+
+        <!-- Question card -->
+        <div id="questionCard" class="trivia-question-card">
+          <!-- Image (if any) -->
+          <div id="imageWrap" class="trivia-image-wrap hidden">
+            <img id="questionImg" class="trivia-image" src="" alt="Question image"
+              onerror="this.parentElement.classList.add('hidden')" />
+          </div>
+
+          <!-- Question text -->
+          <p id="questionText" class="trivia-question-text"></p>
+
+          <!-- Timer + answered count -->
+          <div class="trivia-meta-row">
+            <span id="triviaTimer" class="trivia-timer">⏱ 20s</span>
+            <span id="answeredCount" class="trivia-answered-count"></span>
+          </div>
+        </div>
+
+        <!-- Answer options -->
+        <div id="optionsGrid" class="trivia-options-grid"></div>
+
+        <!-- Host controls (reveal / next) -->
+        <div id="hostControls" class="trivia-host-controls hidden">
+          <button id="revealBtn"  class="btn btn-primary  trivia-host-btn hidden">Reveal Answers</button>
+          <button id="nextBtn"    class="btn btn-success  trivia-host-btn hidden">Next Question →</button>
+          <button id="finishBtn"  class="btn btn-success  trivia-host-btn hidden">See Final Results 🏆</button>
+        </div>
+
+        <!-- Reveal feedback row (shown after reveal) -->
+        <div id="revealRow" class="trivia-reveal-row hidden"></div>
+
+      </div>
+
+      <!-- Results overlay -->
+      <div id="resultsOverlay" class="overlay-card hidden">
+        <h2 id="resultsTitle">🏆 Results</h2>
+        <div id="resultsBody" class="trivia-results"></div>
+        <div class="overlay-btns" style="margin-top:20px">
+          <button id="playAgainBtn" class="btn btn-success">Play Again</button>
+          <a href="/" class="btn btn-primary">Back to Games</a>
+        </div>
+      </div>
+
+      <!-- Reconnect overlay -->
+      <div id="reconnectOverlay" class="overlay-card hidden">
+        <p>Connection lost. Reconnecting…</p>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/singapore-trivia-game.js"></script>
+</body>
+</html>

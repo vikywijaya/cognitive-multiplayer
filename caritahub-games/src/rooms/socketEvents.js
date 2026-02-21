@@ -6,6 +6,7 @@ const { createGame: createChessGame }      = require('../engine/chess');
 const { createGame: createChordaidiGame }  = require('../engine/chordaidi');
 const { createGame: createBingoGame }      = require('../engine/bingo');
 const { createGame: createBoggleGame }     = require('../engine/boggle');
+const { createGame: createTriviaGame }     = require('../engine/singapore-trivia');
 const analytics = require('../analytics/clickhouse');
 const leaderboard = require('../leaderboard');
 
@@ -144,6 +145,25 @@ function bogglePayload(roomId, room, engine) {
 // Active server-side round timers
 const boggleTimers = new Map(); // roomId → timeoutHandle
 
+// ── Singapore Trivia helpers ──────────────────────────────────────────────────
+const TRIVIA_COLORS = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
+
+function seatForTriviaColor(color) { return TRIVIA_COLORS.indexOf(color); }
+
+function triviaPayload(roomId, room, engine) {
+  const gs = engine.state();
+  return {
+    ...gs,
+    players: room.players.map(p => ({
+      name: p.name, color: p.color, connected: p.socketId !== null,
+      seat: seatForTriviaColor(p.color)
+    }))
+  };
+}
+
+// Active per-question auto-reveal timers
+const triviaTimers = new Map(); // roomId → timeoutHandle
+
 module.exports = function wireEvents(io) {
   io.on('connection', socket => {
     console.log('connect', socket.id);
@@ -171,7 +191,8 @@ module.exports = function wireEvents(io) {
         if (gameType === 'chess')          colors = ['white', 'black'];
         else if (gameType === 'chordaidi') colors = ['south', 'west', 'north', 'east'];
         else if (gameType === 'bingo')     colors = BINGO_COLORS.slice(); // 8 seats
-        else if (gameType === 'boggle')    colors = BOGGLE_COLORS.slice(0, 4); // up to 4
+        else if (gameType === 'boggle')         colors = BOGGLE_COLORS.slice(0, 4); // up to 4
+        else if (gameType === 'singapore-trivia') colors = TRIVIA_COLORS.slice(0, 6); // up to 6
         else                               colors = ['red', 'black'];
         targetRoomId = roomManager.createRoom({ colors });
         roomGameTypes.set(targetRoomId, gameType);
@@ -205,6 +226,8 @@ module.exports = function wireEvents(io) {
           socket.emit('game_state', bingoPayload(targetRoomId, room, engine));
         } else if (gt === 'boggle') {
           socket.emit('game_state', bogglePayload(targetRoomId, room, engine));
+        } else if (gt === 'singapore-trivia') {
+          socket.emit('game_state', triviaPayload(targetRoomId, room, engine));
         } else {
           socket.emit('game_state', gameStatePayload(targetRoomId, room, engine));
         }
@@ -239,7 +262,8 @@ module.exports = function wireEvents(io) {
       if (gameType === 'chess')          engine = createChessGame();
       else if (gameType === 'chordaidi') engine = createChordaidiGame();
       else if (gameType === 'bingo')     engine = createBingoGame(room.players.length);
-      else if (gameType === 'boggle')    engine = createBoggleGame(room.players.length);
+      else if (gameType === 'boggle')           engine = createBoggleGame(room.players.length);
+      else if (gameType === 'singapore-trivia') engine = createTriviaGame(room.players.length);
       else                               engine = createXiangqiGame();
       engines.set(roomId, engine);
 
@@ -276,6 +300,8 @@ module.exports = function wireEvents(io) {
           analytics.logEvent('game_ended', roomId, 'timer', 'timer', { winner: winnerColor, gameType: 'boggle' });
         }, 60_000);
         boggleTimers.set(roomId, timer);
+      } else if (gameType === 'singapore-trivia') {
+        io.to(roomId).emit('game_started', triviaPayload(roomId, room, engine));
       } else {
         const payload = gameStatePayload(roomId, room, engine);
         io.to(roomId).emit('game_started', payload);
@@ -459,6 +485,141 @@ module.exports = function wireEvents(io) {
       analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: winnerColor, gameType: 'boggle' });
     });
 
+    // ── Singapore Trivia: host starts/advances question ─────────────
+    // Called both to start Q1 (phase='waiting', questionIndex=-1)
+    // and to advance from reveal to next question (phase='reveal').
+    socket.on('trivia_next', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      if (socket.data.color !== 'p1') return; // host only
+      const engine = engines.get(roomId);
+      if (!engine) return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      // Clear any pending auto-reveal timer
+      if (triviaTimers.has(roomId)) {
+        clearTimeout(triviaTimers.get(roomId));
+        triviaTimers.delete(roomId);
+      }
+
+      const phase = engine.state().phase;
+
+      // If coming from reveal phase, advance to next/finished first
+      if (phase === 'reveal') {
+        const advResult = engine.nextQuestion();
+        if (!advResult.ok) return socket.emit('error', { message: advResult.reason });
+        if (advResult.finished) {
+          // All questions done — trivia_finish will handle the game_over
+          io.to(roomId).emit('game_state', triviaPayload(roomId, room, engine));
+          return;
+        }
+        // Now phase is 'waiting' — fall through to startQuestion
+      }
+
+      // Start the question (phase must be 'waiting')
+      const startResult = engine.startQuestion();
+      if (!startResult.ok) return socket.emit('error', { message: startResult.reason });
+
+      io.to(roomId).emit('game_state', triviaPayload(roomId, room, engine));
+
+      // Auto-reveal after 20 seconds
+      const timer = setTimeout(() => {
+        const eng = engines.get(roomId);
+        const rm  = roomManager.getRoom(roomId);
+        if (!eng || !rm) return;
+        if (eng.state().phase !== 'question') return;
+        eng.revealAnswers();
+        io.to(roomId).emit('game_state', triviaPayload(roomId, rm, eng));
+        triviaTimers.delete(roomId);
+      }, 20_000);
+      triviaTimers.set(roomId, timer);
+    });
+
+    // ── Singapore Trivia: host manually reveals answers ──────────────
+    socket.on('trivia_reveal', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      if (socket.data.color !== 'p1') return; // host only
+      const engine = engines.get(roomId);
+      if (!engine) return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      // Cancel auto-reveal timer
+      if (triviaTimers.has(roomId)) {
+        clearTimeout(triviaTimers.get(roomId));
+        triviaTimers.delete(roomId);
+      }
+
+      const result = engine.revealAnswers();
+      if (!result.ok) return socket.emit('error', { message: result.reason });
+      io.to(roomId).emit('game_state', triviaPayload(roomId, room, engine));
+    });
+
+    // ── Singapore Trivia: submit answer ─────────────────────────────
+    socket.on('trivia_answer', ({ answerIndex }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      if (!engine) return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      const seat = seatForTriviaColor(socket.data.color);
+      const result = engine.submitAnswer(seat, answerIndex);
+      if (!result.ok) return socket.emit('error', { message: result.reason });
+
+      // Broadcast updated answer count to all (no secret info here)
+      io.to(roomId).emit('game_state', triviaPayload(roomId, room, engine));
+
+      // If all players answered, auto-reveal
+      if (result.allAnswered) {
+        if (triviaTimers.has(roomId)) {
+          clearTimeout(triviaTimers.get(roomId));
+          triviaTimers.delete(roomId);
+        }
+        engine.revealAnswers();
+        io.to(roomId).emit('game_state', triviaPayload(roomId, room, engine));
+      }
+    });
+
+    // ── Singapore Trivia: host finishes game after last question ─────
+    socket.on('trivia_finish', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      if (socket.data.color !== 'p1') return; // host only
+      const engine = engines.get(roomId);
+      if (!engine) return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      if (triviaTimers.has(roomId)) {
+        clearTimeout(triviaTimers.get(roomId));
+        triviaTimers.delete(roomId);
+      }
+
+      // nextQuestion sets phase to 'finished' and isGameOver = true
+      engine.nextQuestion();
+
+      const gs = engine.state();
+      const winSeat = engine.winner();
+      const winPlayer = room.players.find(p => seatForTriviaColor(p.color) === winSeat);
+      const winnerColor = winPlayer?.color || null;
+      if (winPlayer) leaderboard.recordWin('singapore-trivia', winPlayer.name);
+
+      io.to(roomId).emit('game_state', triviaPayload(roomId, room, engine));
+      io.to(roomId).emit('game_over', {
+        winner: winnerColor,
+        reason: winPlayer
+          ? `${winPlayer.name} wins with ${gs.scores[winSeat]} points!`
+          : "Game over!"
+      });
+      engines.delete(roomId);
+      roomGameTypes.delete(roomId);
+      analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: winnerColor, gameType: 'singapore-trivia' });
+    });
+
     // ── Undo request ────────────────────────────────────────────────
     socket.on('request_undo', () => {
       const roomId = socket.data.roomId;
@@ -522,6 +683,11 @@ module.exports = function wireEvents(io) {
       if (boggleTimers.has(roomId)) {
         clearTimeout(boggleTimers.get(roomId));
         boggleTimers.delete(roomId);
+      }
+      // Clear any running Trivia timer
+      if (triviaTimers.has(roomId)) {
+        clearTimeout(triviaTimers.get(roomId));
+        triviaTimers.delete(roomId);
       }
       // Clear engine so start_game can run fresh
       engines.delete(roomId);
