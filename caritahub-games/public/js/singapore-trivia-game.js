@@ -135,6 +135,7 @@ function renderWaiting(state) {
     hostControls.classList.remove('hidden');
     revealBtn.classList.add('hidden');
     nextBtn.classList.remove('hidden');
+    nextBtn.disabled = false;
     finishBtn.classList.add('hidden');
   } else {
     hostControls.classList.add('hidden');
@@ -169,6 +170,7 @@ function renderQuestion(state) {
   if (isHost) {
     hostControls.classList.remove('hidden');
     revealBtn.classList.remove('hidden');
+    revealBtn.disabled = false;
     nextBtn.classList.add('hidden');
     finishBtn.classList.add('hidden');
   } else {
@@ -211,7 +213,9 @@ function renderReveal(state) {
     revealBtn.classList.add('hidden');
     const isLast = state.questionIndex >= state.totalQuestions - 1;
     nextBtn.classList.toggle('hidden', isLast);
+    nextBtn.disabled = false;
     finishBtn.classList.toggle('hidden', !isLast);
+    finishBtn.disabled = false;
   } else {
     hostControls.classList.add('hidden');
   }
