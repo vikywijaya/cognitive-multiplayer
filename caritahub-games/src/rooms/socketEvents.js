@@ -7,6 +7,8 @@ const { createGame: createChordaidiGame }  = require('../engine/chordaidi');
 const { createGame: createBingoGame }      = require('../engine/bingo');
 const { createGame: createBoggleGame }     = require('../engine/boggle');
 const { createGame: createTriviaGame }     = require('../engine/singapore-trivia');
+const { createGame: createDiffGame }       = require('../engine/spot-the-difference');
+const { createGame: createRhythmGame }     = require('../engine/rhythm-tap');
 const analytics = require('../analytics/clickhouse');
 const leaderboard = require('../leaderboard');
 
@@ -164,6 +166,42 @@ function triviaPayload(roomId, room, engine) {
 // Active per-question auto-reveal timers
 const triviaTimers = new Map(); // roomId → timeoutHandle
 
+// ── Spot the Difference helpers ───────────────────────────────────────────────
+const DIFF_COLORS = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
+
+function seatForDiffColor(color) { return DIFF_COLORS.indexOf(color); }
+
+function diffPayload(roomId, room, engine) {
+  const gs = engine.state();
+  return {
+    ...gs,
+    players: room.players.map(p => ({
+      name: p.name, color: p.color, connected: p.socketId !== null,
+      seat: seatForDiffColor(p.color)
+    }))
+  };
+}
+
+const diffTimers = new Map(); // roomId → timeoutHandle
+
+// ── Rhythm Tap helpers ────────────────────────────────────────────────────────
+const RHYTHM_COLORS = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
+
+function seatForRhythmColor(color) { return RHYTHM_COLORS.indexOf(color); }
+
+function rhythmPayload(roomId, room, engine) {
+  const gs = engine.state();
+  return {
+    ...gs,
+    players: room.players.map(p => ({
+      name: p.name, color: p.color, connected: p.socketId !== null,
+      seat: seatForRhythmColor(p.color)
+    }))
+  };
+}
+
+const rhythmTimers = new Map(); // roomId → timeoutHandle
+
 module.exports = function wireEvents(io) {
   io.on('connection', socket => {
     console.log('connect', socket.id);
@@ -192,7 +230,9 @@ module.exports = function wireEvents(io) {
         else if (gameType === 'chordaidi') colors = ['south', 'west', 'north', 'east'];
         else if (gameType === 'bingo')     colors = BINGO_COLORS.slice(); // 8 seats
         else if (gameType === 'boggle')         colors = BOGGLE_COLORS.slice(0, 4); // up to 4
-        else if (gameType === 'singapore-trivia') colors = TRIVIA_COLORS.slice(0, 6); // up to 6
+        else if (gameType === 'singapore-trivia')  colors = TRIVIA_COLORS.slice(0, 6); // up to 6
+        else if (gameType === 'spot-the-difference') colors = DIFF_COLORS.slice(0, 6);
+        else if (gameType === 'rhythm-tap')          colors = RHYTHM_COLORS.slice(0, 6);
         else                               colors = ['red', 'black'];
         targetRoomId = roomManager.createRoom({ colors });
         roomGameTypes.set(targetRoomId, gameType);
@@ -228,6 +268,10 @@ module.exports = function wireEvents(io) {
           socket.emit('game_state', bogglePayload(targetRoomId, room, engine));
         } else if (gt === 'singapore-trivia') {
           socket.emit('game_state', triviaPayload(targetRoomId, room, engine));
+        } else if (gt === 'spot-the-difference') {
+          socket.emit('game_state', diffPayload(targetRoomId, room, engine));
+        } else if (gt === 'rhythm-tap') {
+          socket.emit('game_state', rhythmPayload(targetRoomId, room, engine));
         } else {
           socket.emit('game_state', gameStatePayload(targetRoomId, room, engine));
         }
@@ -263,7 +307,9 @@ module.exports = function wireEvents(io) {
       else if (gameType === 'chordaidi') engine = createChordaidiGame();
       else if (gameType === 'bingo')     engine = createBingoGame(room.players.length);
       else if (gameType === 'boggle')           engine = createBoggleGame(room.players.length);
-      else if (gameType === 'singapore-trivia') engine = createTriviaGame(room.players.length);
+      else if (gameType === 'singapore-trivia')  engine = createTriviaGame(room.players.length);
+      else if (gameType === 'spot-the-difference') engine = createDiffGame(room.players.length);
+      else if (gameType === 'rhythm-tap')          engine = createRhythmGame(room.players.length);
       else                               engine = createXiangqiGame();
       engines.set(roomId, engine);
 
@@ -302,6 +348,10 @@ module.exports = function wireEvents(io) {
         boggleTimers.set(roomId, timer);
       } else if (gameType === 'singapore-trivia') {
         io.to(roomId).emit('game_started', triviaPayload(roomId, room, engine));
+      } else if (gameType === 'spot-the-difference') {
+        io.to(roomId).emit('game_started', diffPayload(roomId, room, engine));
+      } else if (gameType === 'rhythm-tap') {
+        io.to(roomId).emit('game_started', rhythmPayload(roomId, room, engine));
       } else {
         const payload = gameStatePayload(roomId, room, engine);
         io.to(roomId).emit('game_started', payload);
@@ -620,6 +670,260 @@ module.exports = function wireEvents(io) {
       analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: winnerColor, gameType: 'singapore-trivia' });
     });
 
+    // ── Spot the Difference: host starts first round ──────────────────
+    socket.on('diff_start', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      if (socket.data.color !== 'p1') return;
+      const engine = engines.get(roomId);
+      if (!engine) return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      const result = engine.startRound();
+      if (!result.ok) return socket.emit('error', { message: result.reason });
+
+      io.to(roomId).emit('game_state', diffPayload(roomId, room, engine));
+
+      // Auto-timeout after 60 seconds
+      const timer = setTimeout(() => {
+        const eng = engines.get(roomId);
+        const rm  = roomManager.getRoom(roomId);
+        if (!eng || !rm) return;
+        eng.roundTimeout();
+        io.to(roomId).emit('game_state', diffPayload(roomId, rm, eng));
+        diffTimers.delete(roomId);
+      }, 60_000);
+      diffTimers.set(roomId, timer);
+      analytics.logEvent('diff_round_start', roomId, socket.id, socket.data.playerName, { round: engine.state().roundIndex });
+    });
+
+    // ── Spot the Difference: player clicks a spot ─────────────────────
+    socket.on('diff_click', ({ x, y }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      if (!engine) return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      // Validate coords
+      if (typeof x !== 'number' || typeof y !== 'number') return;
+      if (x < 0 || x > 100 || y < 0 || y > 100) return;
+
+      const result = engine.clickHotspot(x, y);
+      if (!result.ok) return;
+
+      if (result.found) {
+        io.to(roomId).emit('game_state', diffPayload(roomId, room, engine));
+        analytics.logEvent('diff_found', roomId, socket.id, socket.data.playerName, { hotspotId: result.hotspotId });
+
+        if (result.allFound) {
+          // Clear round timer
+          if (diffTimers.has(roomId)) {
+            clearTimeout(diffTimers.get(roomId));
+            diffTimers.delete(roomId);
+          }
+          if (engine.isGameOver()) {
+            const gs = engine.state();
+            io.to(roomId).emit('game_over', {
+              winner: null,
+              reason: `All differences found! Team score: ${gs.teamScore} pts 🎉`
+            });
+            engines.delete(roomId);
+            roomGameTypes.delete(roomId);
+            analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { teamScore: gs.teamScore, gameType: 'spot-the-difference' });
+          }
+        }
+      } else {
+        // Wrong click — private feedback to the clicker only
+        socket.emit('diff_miss', { x, y });
+      }
+    });
+
+    // ── Spot the Difference: host advances to next round ──────────────
+    socket.on('diff_next', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      if (socket.data.color !== 'p1') return;
+      const engine = engines.get(roomId);
+      if (!engine) return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      // Cancel existing round timer
+      if (diffTimers.has(roomId)) {
+        clearTimeout(diffTimers.get(roomId));
+        diffTimers.delete(roomId);
+      }
+
+      const result = engine.nextRound();
+      if (!result.ok) return socket.emit('error', { message: result.reason });
+
+      io.to(roomId).emit('game_state', diffPayload(roomId, room, engine));
+
+      if (engine.isGameOver()) {
+        const gs = engine.state();
+        io.to(roomId).emit('game_over', {
+          winner: null,
+          reason: `Game complete! Team score: ${gs.teamScore} pts 🎉`
+        });
+        engines.delete(roomId);
+        roomGameTypes.delete(roomId);
+        analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { teamScore: gs.teamScore, gameType: 'spot-the-difference' });
+      } else {
+        // Start new round timer
+        const timer = setTimeout(() => {
+          const eng = engines.get(roomId);
+          const rm  = roomManager.getRoom(roomId);
+          if (!eng || !rm) return;
+          eng.roundTimeout();
+          io.to(roomId).emit('game_state', diffPayload(roomId, rm, eng));
+          diffTimers.delete(roomId);
+        }, 60_000);
+        diffTimers.set(roomId, timer);
+      }
+    });
+
+    // ── Spot the Difference: host ends game early ─────────────────────
+    socket.on('diff_finish', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      if (socket.data.color !== 'p1') return;
+      const engine = engines.get(roomId);
+      if (!engine) return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      if (diffTimers.has(roomId)) {
+        clearTimeout(diffTimers.get(roomId));
+        diffTimers.delete(roomId);
+      }
+
+      engine.finishGame();
+      const gs = engine.state();
+      io.to(roomId).emit('game_state', diffPayload(roomId, room, engine));
+      io.to(roomId).emit('game_over', {
+        winner: null,
+        reason: `Game ended. Team score: ${gs.teamScore} pts`
+      });
+      engines.delete(roomId);
+      roomGameTypes.delete(roomId);
+      analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { teamScore: gs.teamScore, gameType: 'spot-the-difference', reason: 'host_ended' });
+    });
+
+    // ── Rhythm Tap: host starts game ──────────────────────────────────
+    socket.on('rhythm_start', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      if (socket.data.color !== 'p1') return;
+      const engine = engines.get(roomId);
+      if (!engine) return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      const startTime = Date.now();
+      const result = engine.startGame(startTime);
+      if (!result.ok) return socket.emit('error', { message: result.reason });
+
+      io.to(roomId).emit('game_state', rhythmPayload(roomId, room, engine));
+
+      // Auto-end when last beat expires + 2s buffer
+      const lastBeat = engine.lastBeatTime();
+      const endDelay = lastBeat + 2000;
+
+      const timer = setTimeout(() => {
+        const eng = engines.get(roomId);
+        const rm  = roomManager.getRoom(roomId);
+        if (!eng || !rm) return;
+        eng.endGame();
+        const gs = eng.state();
+        io.to(roomId).emit('game_state', rhythmPayload(roomId, rm, eng));
+
+        const winSeat   = eng.winner();
+        const winPlayer = rm.players.find(p => seatForRhythmColor(p.color) === winSeat);
+        const winnerColor = winPlayer?.color || null;
+        if (winPlayer) leaderboard.recordWin('rhythm-tap', winPlayer.name);
+        io.to(roomId).emit('game_over', {
+          winner: winnerColor,
+          reason: winPlayer
+            ? `${winPlayer.name} wins with ${gs.scores[winSeat]} hits!`
+            : 'Game over!'
+        });
+        engines.delete(roomId);
+        roomGameTypes.delete(roomId);
+        rhythmTimers.delete(roomId);
+        analytics.logEvent('game_ended', roomId, 'timer', 'timer', { winner: winnerColor, gameType: 'rhythm-tap' });
+      }, endDelay);
+      rhythmTimers.set(roomId, timer);
+      analytics.logEvent('game_started', roomId, socket.id, socket.data.playerName, { gameType: 'rhythm-tap', pattern: engine.state().patternName });
+    });
+
+    // ── Rhythm Tap: player taps a lane ────────────────────────────────
+    socket.on('rhythm_tap', ({ lane, clientTime }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      if (!engine) return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      if (typeof lane !== 'number' || lane < 0 || lane > 3) return;
+      if (typeof clientTime !== 'number') return;
+
+      const seat   = seatForRhythmColor(socket.data.color);
+      const result = engine.tapBeat(seat, lane, clientTime);
+      if (!result.ok) return;
+
+      // Private timing feedback to the tapping player
+      socket.emit('rhythm_tap_result', {
+        hit:       result.hit,
+        accuracy:  result.accuracy || 'miss',
+        beatIndex: result.beatIndex ?? null
+      });
+
+      // Broadcast updated scores to all
+      const gs = engine.state();
+      io.to(roomId).emit('rhythm_score_update', {
+        scores:   gs.scores,
+        beatsHit: gs.beatsHit
+      });
+    });
+
+    // ── Rhythm Tap: host ends game early ──────────────────────────────
+    socket.on('rhythm_finish', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      if (socket.data.color !== 'p1') return;
+      const engine = engines.get(roomId);
+      if (!engine) return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      if (rhythmTimers.has(roomId)) {
+        clearTimeout(rhythmTimers.get(roomId));
+        rhythmTimers.delete(roomId);
+      }
+
+      engine.endGame();
+      const gs        = engine.state();
+      const winSeat   = engine.winner();
+      const winPlayer = room.players.find(p => seatForRhythmColor(p.color) === winSeat);
+      const winnerColor = winPlayer?.color || null;
+      if (winPlayer) leaderboard.recordWin('rhythm-tap', winPlayer.name);
+
+      io.to(roomId).emit('game_state', rhythmPayload(roomId, room, engine));
+      io.to(roomId).emit('game_over', {
+        winner: winnerColor,
+        reason: winPlayer
+          ? `${winPlayer.name} wins with ${gs.scores[winSeat]} hits!`
+          : 'Game over!'
+      });
+      engines.delete(roomId);
+      roomGameTypes.delete(roomId);
+      analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: winnerColor, gameType: 'rhythm-tap', reason: 'host_ended' });
+    });
+
     // ── Undo request ────────────────────────────────────────────────
     socket.on('request_undo', () => {
       const roomId = socket.data.roomId;
@@ -688,6 +992,16 @@ module.exports = function wireEvents(io) {
       if (triviaTimers.has(roomId)) {
         clearTimeout(triviaTimers.get(roomId));
         triviaTimers.delete(roomId);
+      }
+      // Clear any running Spot the Difference timer
+      if (diffTimers.has(roomId)) {
+        clearTimeout(diffTimers.get(roomId));
+        diffTimers.delete(roomId);
+      }
+      // Clear any running Rhythm Tap timer
+      if (rhythmTimers.has(roomId)) {
+        clearTimeout(rhythmTimers.get(roomId));
+        rhythmTimers.delete(roomId);
       }
       // Clear engine so start_game can run fresh
       engines.delete(roomId);

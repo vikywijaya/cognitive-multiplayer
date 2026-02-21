@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rhythm Tap — CaritaHub Games</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="header-inner">
+        <div class="header-nav"><a href="/" class="back-link">← All Games</a></div>
+        <h1>Rhythm Tap</h1>
+        <p class="subtitle" id="statusBar">Connecting…</p>
+      </div>
+    </header>
+
+    <main id="rhythmApp">
+
+      <!-- Waiting overlay -->
+      <div id="waitingOverlay" class="overlay-card">
+        <p class="overlay-title">🎵 Rhythm Tap</p>
+        <p id="waitingMsg">Waiting for game to start…</p>
+      </div>
+
+      <!-- Reconnect overlay -->
+      <div id="reconnectOverlay" class="overlay-card hidden">
+        <p>Connection lost. Reconnecting…</p>
+      </div>
+
+      <!-- Game UI -->
+      <div id="gameUI" class="hidden">
+
+        <!-- Player score strip -->
+        <div id="rhythmPlayers" class="rhythm-players"></div>
+
+        <!-- Pattern name + BPM -->
+        <div id="rhythmPatternInfo" class="rhythm-pattern-info">
+          <span id="rhythmPatternName"></span>
+          <span id="rhythmBpmLabel"></span>
+        </div>
+
+        <!-- Falling beats canvas -->
+        <div class="rhythm-canvas-wrap">
+          <canvas id="rhythmCanvas" class="rhythm-canvas"></canvas>
+        </div>
+
+        <!-- Accuracy feedback -->
+        <div id="rhythmFeedback" class="rhythm-feedback"></div>
+
+        <!-- Tap buttons (4 lanes) -->
+        <div id="rhythmButtons" class="rhythm-buttons">
+          <button class="rhythm-tap-btn rhythm-lane-0" data-lane="0">TAP</button>
+          <button class="rhythm-tap-btn rhythm-lane-1" data-lane="1">TAP</button>
+          <button class="rhythm-tap-btn rhythm-lane-2" data-lane="2">TAP</button>
+          <button class="rhythm-tap-btn rhythm-lane-3" data-lane="3">TAP</button>
+        </div>
+
+        <!-- Host controls -->
+        <div id="rhythmHostControls" class="rhythm-host-controls hidden">
+          <button id="rhythmStartBtn"  class="btn btn-success  hidden">▶ Start Game!</button>
+          <button id="rhythmFinishBtn" class="btn btn-secondary hidden">End Game</button>
+        </div>
+
+      </div><!-- /gameUI -->
+
+      <!-- Results overlay -->
+      <div id="resultsOverlay" class="overlay-card hidden">
+        <h2 id="resultsTitle">🏆 Results</h2>
+        <div id="resultsBody" class="rhythm-results"></div>
+        <div style="margin-top:20px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap">
+          <button id="playAgainBtn" class="btn btn-success">Play Again</button>
+          <a href="/" class="btn btn-primary">Back to Games</a>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/rhythm-tap.js"></script>
+</body>
+</html>

@@ -1935,3 +1935,274 @@ input[type="text"]:focus { border-color: var(--blue); }
 .trivia-result-medal  { font-size: 1.2rem; }
 .trivia-result-name   { flex: 1; font-size: 0.95rem; }
 .trivia-result-score  { font-size: 0.9rem; color: var(--blue); font-weight: 700; }
+
+/* ===================================================================
+   SPOT THE DIFFERENCE  (.diff-*)
+   =================================================================== */
+
+/* Top bar */
+.diff-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+/* Players strip */
+.diff-players { display: flex; flex-wrap: wrap; gap: 7px; flex: 1; align-items: center; }
+
+.diff-player-chip {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--white); border: 2px solid #ccc; border-radius: 999px;
+  padding: 5px 12px 5px 8px; font-size: 0.82rem; font-weight: 700;
+  box-shadow: var(--shadow);
+}
+.diff-me { background: #edf3ff; border-color: var(--blue) !important; }
+.diff-chip-dot  { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.diff-chip-name { color: var(--text); }
+
+/* Timer */
+.diff-timer-wrap {
+  flex-shrink: 0; background: var(--white); border-radius: 10px;
+  padding: 6px 14px; text-align: center; box-shadow: var(--shadow); min-width: 72px;
+}
+.diff-timer-label {
+  font-size: 0.60rem; font-weight: 800; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.1em; display: block;
+}
+.diff-timer {
+  font-size: 1.5rem; font-weight: 900; color: var(--blue); line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.diff-timer-urgent { color: #c0392b; animation: trivia-pulse 0.5s ease infinite alternate; }
+
+/* Round info bar */
+.diff-round-info {
+  display: flex; justify-content: space-between;
+  font-size: 0.82rem; font-weight: 700; color: var(--text-muted);
+  margin-bottom: 6px; padding: 0 2px;
+}
+
+/* Scene label */
+.diff-scene-label {
+  font-size: 1rem; font-weight: 700; color: var(--text);
+  text-align: center; margin-bottom: 8px;
+}
+
+/* Side-by-side image layout */
+.diff-image-wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+@media (max-width: 480px) {
+  .diff-image-wrap { grid-template-columns: 1fr; }
+}
+
+.diff-side { display: flex; flex-direction: column; gap: 4px; }
+.diff-side-label {
+  font-size: 0.70rem; font-weight: 800; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.08em; text-align: center;
+}
+
+.diff-img {
+  width: 100%; display: block; border-radius: 10px;
+  object-fit: contain; max-height: 260px; background: #f0f0f0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+}
+
+/* Right side: relative wrapper for overlay */
+.diff-right-wrap {
+  position: relative;
+  display: block;
+  width: 100%;
+  line-height: 0; /* remove gap below img */
+}
+
+/* Transparent overlay container */
+.diff-overlay {
+  position: absolute; inset: 0;
+  pointer-events: none; /* children have pointer-events: all */
+}
+
+/* Individual hotspot zone */
+.diff-hotspot {
+  position: absolute;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 220, 0, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  pointer-events: all;
+  transition: background 0.15s, border-color 0.15s;
+  box-sizing: border-box;
+}
+.diff-hotspot:hover:not(.diff-hotspot-found) {
+  background: rgba(255, 220, 0, 0.18);
+  border-color: rgba(255, 200, 0, 1);
+}
+
+/* Found hotspot: green pop */
+.diff-hotspot-found {
+  border: 3px solid #27ae60;
+  background: rgba(39, 174, 96, 0.28);
+  cursor: default;
+  pointer-events: none;
+  animation: diff-found-pop 0.45s cubic-bezier(.34, 1.56, .64, 1) both;
+}
+@keyframes diff-found-pop {
+  0%   { transform: scale(0.4); opacity: 0.3; }
+  60%  { transform: scale(1.2); }
+  100% { transform: scale(1);   opacity: 1;   }
+}
+
+/* Miss flash */
+.diff-miss-flash {
+  position: absolute;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: rgba(192, 57, 43, 0.55);
+  border: 2px solid #c0392b;
+  pointer-events: none;
+  animation: diff-miss-fade 0.5s ease forwards;
+  z-index: 10;
+}
+@keyframes diff-miss-fade {
+  0%   { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.9); }
+}
+
+/* Host controls */
+.diff-host-controls {
+  display: flex; gap: 10px; justify-content: center;
+  margin-bottom: 14px; flex-wrap: wrap;
+}
+.diff-host-controls .btn { min-width: 130px; margin-top: 0; }
+
+/* Non-host wait message */
+.diff-wait-host {
+  text-align: center; padding: 12px;
+  font-size: 0.90rem; color: var(--text-muted);
+}
+
+/* Results */
+.diff-results         { width: 100%; text-align: center; padding: 10px 0; }
+.diff-result-reason   { font-size: 0.88rem; color: var(--text-muted); margin-bottom: 14px; }
+.diff-result-score-big {
+  font-size: 3.2rem; font-weight: 900; color: var(--blue); line-height: 1;
+  margin: 16px 0 8px;
+}
+.diff-result-sub    { font-size: 0.88rem; color: var(--text-muted); }
+.diff-result-player { display: flex; align-items: center; justify-content: center; margin-bottom: 6px; font-size: 0.95rem; }
+
+/* overlay-card shared style used by diff & rhythm waiting screens */
+.overlay-title {
+  font-size: 1.4rem; font-weight: 800; color: var(--text);
+  margin-bottom: 8px;
+}
+
+
+/* ===================================================================
+   RHYTHM TAP  (.rhythm-*)
+   =================================================================== */
+
+/* Player score strip */
+.rhythm-players {
+  display: flex; flex-wrap: wrap; gap: 7px;
+  margin-bottom: 10px; justify-content: center;
+}
+.rhythm-player-chip {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--white); border: 2px solid #ccc; border-radius: 999px;
+  padding: 5px 12px 5px 8px; font-size: 0.80rem; font-weight: 700;
+  box-shadow: var(--shadow);
+}
+.rhythm-me { background: #edf3ff; border-color: var(--blue) !important; }
+.rhythm-chip-dot   { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.rhythm-chip-name  { color: var(--text); }
+.rhythm-chip-lanes {
+  font-size: 0.68rem; color: var(--text-muted);
+  background: var(--gray-bg); border-radius: 8px; padding: 1px 7px;
+}
+.rhythm-chip-score {
+  font-size: 0.70rem; font-weight: 800;
+  background: var(--blue-light); color: var(--blue);
+  border-radius: 10px; padding: 1px 8px;
+}
+
+/* Pattern info */
+.rhythm-pattern-info {
+  text-align: center; margin-bottom: 10px;
+  font-size: 0.85rem; font-weight: 700; color: var(--text-muted);
+  display: flex; justify-content: center; gap: 14px;
+}
+
+/* Canvas wrapper */
+.rhythm-canvas-wrap {
+  background: var(--white); border-radius: 16px; overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.10);
+  margin-bottom: 8px; width: 100%;
+}
+.rhythm-canvas { display: block; width: 100%; touch-action: none; }
+
+/* Accuracy feedback */
+.rhythm-feedback {
+  text-align: center; font-size: 1.15rem; font-weight: 900;
+  min-height: 30px; letter-spacing: 0.04em; margin-bottom: 6px;
+  transition: color 0.1s;
+}
+.rhythm-feedback-perfect { color: #e6a817; }
+.rhythm-feedback-good    { color: #27ae60; }
+.rhythm-feedback-miss    { color: #c0392b; }
+
+/* 4-lane tap button row */
+.rhythm-buttons {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 6px; margin-bottom: 8px;
+}
+.rhythm-tap-btn {
+  font-family: Helvetica, Arial, sans-serif;
+  font-size: 0.88rem; font-weight: 900; letter-spacing: 0.05em;
+  padding: 20px 4px; border: none; border-radius: 12px;
+  cursor: pointer; min-height: 64px;
+  transition: transform 0.08s, opacity 0.15s;
+  user-select: none; -webkit-user-select: none;
+  touch-action: manipulation; color: white;
+}
+.rhythm-tap-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* Lane color themes */
+.rhythm-lane-0 { background: #1155cc; box-shadow: 0 4px 12px rgba(17,85,204,0.35); }
+.rhythm-lane-1 { background: #c0392b; box-shadow: 0 4px 12px rgba(192,57,43,0.35); }
+.rhythm-lane-2 { background: #1a6e1a; box-shadow: 0 4px 12px rgba(26,110,26,0.35); }
+.rhythm-lane-3 { background: #7d3c98; box-shadow: 0 4px 12px rgba(125,60,152,0.35); }
+
+/* Not-my-lane button */
+.rhythm-lane-other { opacity: 0.22 !important; cursor: not-allowed !important; }
+
+/* Press animation */
+.rhythm-btn-pressed { transform: scale(0.91) !important; opacity: 0.8 !important; }
+
+/* Host controls */
+.rhythm-host-controls {
+  display: flex; gap: 10px; justify-content: center;
+  margin-top: 4px; margin-bottom: 10px; flex-wrap: wrap;
+}
+.rhythm-host-controls .btn { min-width: 130px; margin-top: 0; }
+
+/* Results */
+.rhythm-results { width: 100%; margin-top: 10px; }
+.rhythm-result-reason {
+  font-size: 0.88rem; color: var(--text-muted); margin-bottom: 14px; text-align: center;
+}
+.rhythm-result-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; border-radius: 10px;
+  background: var(--gray-bg); margin-bottom: 6px; font-weight: 600;
+}
+.rhythm-result-winner { background: #fff8e1; border: 2px solid #f9ca24; }
+.rhythm-result-medal  { font-size: 1.2rem; }
+.rhythm-result-name   { flex: 1; font-size: 0.95rem; }
+.rhythm-result-score  { font-size: 0.9rem; color: var(--blue); font-weight: 800; }

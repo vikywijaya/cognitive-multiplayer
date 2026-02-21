@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spot the Difference — CaritaHub Games</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="header-inner">
+        <div class="header-nav"><a href="/" class="back-link">← All Games</a></div>
+        <h1>Spot the Difference</h1>
+        <p class="subtitle" id="statusBar">Connecting…</p>
+      </div>
+    </header>
+
+    <main id="diffApp">
+
+      <!-- Waiting overlay (pre-game) -->
+      <div id="waitingOverlay" class="overlay-card">
+        <p class="overlay-title">🔍 Spot the Difference</p>
+        <p id="waitingMsg">Waiting for game to start…</p>
+      </div>
+
+      <!-- Reconnect overlay -->
+      <div id="reconnectOverlay" class="overlay-card hidden">
+        <p>Connection lost. Reconnecting…</p>
+      </div>
+
+      <!-- Main game UI -->
+      <div id="gameUI" class="hidden">
+
+        <!-- Top bar: players + timer -->
+        <div class="diff-topbar">
+          <div id="diffPlayers" class="diff-players"></div>
+          <div class="diff-timer-wrap">
+            <span class="diff-timer-label">Time</span>
+            <span id="diffTimer" class="diff-timer">—</span>
+          </div>
+        </div>
+
+        <!-- Round info bar -->
+        <div class="diff-round-info">
+          <span id="diffRoundLabel">Round — / 5</span>
+          <span id="diffFoundLabel">Found: 0 / 5</span>
+          <span id="diffScoreLabel">Team: 0 pts</span>
+        </div>
+
+        <!-- Scene label -->
+        <div id="diffSceneLabel" class="diff-scene-label"></div>
+
+        <!-- Side-by-side images -->
+        <div id="diffImageWrap" class="diff-image-wrap">
+          <!-- Left: original (no overlay) -->
+          <div class="diff-side diff-left">
+            <div class="diff-side-label">Original</div>
+            <img id="diffImgLeft" class="diff-img" src="" alt="Original"
+              onerror="this.style.visibility='hidden'" />
+          </div>
+
+          <!-- Right: with clickable hotspot overlays -->
+          <div class="diff-side diff-right">
+            <div class="diff-side-label">Find the differences!</div>
+            <div class="diff-right-wrap" id="diffRightWrap">
+              <img id="diffImgRight" class="diff-img" src="" alt="Spot the difference"
+                onerror="this.style.visibility='hidden'" />
+              <div id="diffOverlay" class="diff-overlay"></div>
+              <!-- Miss flash -->
+              <div id="diffMissFlash" class="diff-miss-flash hidden"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Wait-for-host message (non-host, between rounds) -->
+        <div id="diffWaitHost" class="diff-wait-host hidden">
+          <p>⏳ Waiting for host to start next round…</p>
+        </div>
+
+        <!-- Host controls -->
+        <div id="diffHostControls" class="diff-host-controls hidden">
+          <button id="diffStartBtn"  class="btn btn-success  hidden">Start Round 1 →</button>
+          <button id="diffNextBtn"   class="btn btn-success  hidden">Next Round →</button>
+          <button id="diffFinishBtn" class="btn btn-secondary hidden">End Game</button>
+        </div>
+
+      </div><!-- /gameUI -->
+
+      <!-- Results overlay -->
+      <div id="resultsOverlay" class="overlay-card hidden">
+        <h2 id="resultsTitle">🎉 Game Over!</h2>
+        <div id="resultsBody" class="diff-results"></div>
+        <div style="margin-top:20px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap">
+          <button id="playAgainBtn" class="btn btn-success">Play Again</button>
+          <a href="/" class="btn btn-primary">Back to Games</a>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/spot-the-difference.js"></script>
+</body>
+</html>

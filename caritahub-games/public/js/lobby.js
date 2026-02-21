@@ -57,6 +57,20 @@ const GAMES = {
     gamePage: '/singapore-trivia-game.html',
     maxPlayers: 2,
     hostColors: ['p1']
+  },
+  'spot-the-difference': {
+    title: 'Spot the Difference',
+    subtitle: 'Singapore Scenes — Co-op, 5 Rounds',
+    gamePage: '/spot-the-difference.html',
+    maxPlayers: 2,
+    hostColors: ['p1']
+  },
+  'rhythm-tap': {
+    title: 'Rhythm Tap',
+    subtitle: 'Beat Tap Game — 1 to 6 Players',
+    gamePage: '/rhythm-tap.html',
+    maxPlayers: 1,
+    hostColors: ['p1']
   }
 };
 
