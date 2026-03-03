@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CaritaHub TV Boggle</title>
+  <link rel="stylesheet" href="/css/tv-boggle.css" />
+</head>
+<body>
+
+  <!-- ── Lobby Phase ── -->
+  <div id="lobbyPhase" class="tv-phase tv-lobby active">
+    <div class="tv-lobby-title">TV Boggle</div>
+    <div class="tv-lobby-subtitle">Word Hunt — Scan the QR code to join!</div>
+    <div class="tv-lobby-body">
+      <div class="tv-qr-section">
+        <div class="tv-qr-box">
+          <div id="qrcode"></div>
+        </div>
+        <div class="tv-qr-instruction">Scan with your phone camera</div>
+        <div id="joinUrl" class="tv-qr-url"></div>
+      </div>
+      <div class="tv-player-section">
+        <div class="tv-player-section-title">Players Joined</div>
+        <div id="lobbyPlayerList" class="tv-player-list">
+          <div class="tv-player-empty">Waiting for players...</div>
+        </div>
+        <button id="startBtn" class="tv-start-btn" disabled>Start Game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Playing Phase ── -->
+  <div id="playingPhase" class="tv-phase tv-playing">
+
+    <!-- Left: title bar + boggle board -->
+    <div class="tv-playing-main">
+      <div class="tv-playing-header">
+        <div class="tv-playing-title">TV Boggle</div>
+        <div class="tv-playing-timer-wrap">
+          <div class="tv-countdown-wrap">
+            <svg class="tv-countdown-svg" viewBox="0 0 100 100">
+              <circle class="tv-countdown-track" cx="50" cy="50" r="45" />
+              <circle id="countdownCircle" class="tv-countdown-progress" cx="50" cy="50" r="45"
+                      stroke-dasharray="283" stroke-dashoffset="0" />
+            </svg>
+            <div id="countdownText" class="tv-countdown-text">120</div>
+            <div class="tv-countdown-sub">seconds</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tv-playing-center">
+        <div id="boggleGrid" class="tv-boggle-grid"></div>
+      </div>
+    </div>
+
+    <!-- Right: players panel -->
+    <div class="tv-playing-right">
+      <div class="tv-playing-right-title">Players</div>
+      <div id="playersStrip" class="tv-players-strip"></div>
+    </div>
+
+  </div>
+
+  <!-- ── Results Phase ── -->
+  <div id="resultsPhase" class="tv-phase tv-results">
+    <div class="tv-results-title">Scoreboard</div>
+    <div id="resultsBoard" class="tv-results-board"></div>
+  </div>
+
+  <!-- ── Game Over Phase ── -->
+  <div id="gameoverPhase" class="tv-phase tv-gameover">
+    <div class="tv-gameover-emoji">🏆</div>
+    <div class="tv-gameover-title">WORD MASTER!</div>
+    <div id="gameoverWinnerName" class="tv-gameover-winner-name"></div>
+    <div id="gameoverWinner" class="tv-gameover-winner"></div>
+    <div class="tv-gameover-btns">
+      <button id="playAgainBtn" class="tv-gameover-btn tv-btn-play-again">Play Again</button>
+    </div>
+  </div>
+
+  <!-- ── Confetti Container ── -->
+  <div id="confettiContainer" class="tv-confetti-container hidden"></div>
+
+  <!-- ── Reconnect Overlay ── -->
+  <div id="reconnectOverlay" class="tv-reconnect hidden">
+    Connection lost. Reconnecting...
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="/js/tv-boggle.js"></script>
+</body>
+</html>

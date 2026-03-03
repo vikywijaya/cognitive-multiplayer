@@ -9,6 +9,7 @@ const { createGame: createBoggleGame }     = require('../engine/boggle');
 const { createGame: createTriviaGame }     = require('../engine/singapore-trivia');
 const { createGame: createDiffGame }       = require('../engine/spot-the-difference');
 const { createGame: createRhythmGame }     = require('../engine/rhythm-tap');
+const { createGame: createHigherLowerGame } = require('../engine/higher-lower');
 const analytics = require('../analytics/clickhouse');
 const leaderboard = require('../leaderboard');
 
@@ -93,6 +94,60 @@ function broadcastCDI(io, roomId, room, engine) {
 
 // ── Bingo helpers ────────────────────────────────────────────────────────────
 const BINGO_COLORS = ['caller', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'];
+const BINGO_COLUMNS = ['B', 'I', 'N', 'G', 'O'];
+
+// ── TV Bingo helpers ─────────────────────────────────────────────────────────
+const TV_BINGO_COLORS = ['tv-host', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'];
+const bingoAutoTimers = new Map(); // roomId → intervalHandle
+
+function seatForTvBingoColor(color) {
+  if (color === 'tv-host') return -1;
+  const idx = TV_BINGO_COLORS.indexOf(color);
+  return idx > 0 ? idx - 1 : -1; // p1=0, p2=1, ..., p8=7
+}
+
+function tvBingoPayload(roomId, room, engine) {
+  const gs = engine.state();
+  return {
+    gameType: 'tv-bingo',
+    called:      gs.called,
+    lastCalled:  gs.lastCalled,
+    cards:       gs.cards,
+    marked:      gs.marked,
+    isGameOver:  gs.isGameOver,
+    winners:     gs.winners,
+    playerCount: gs.playerCount,
+    autoCallInterval: 15,
+    players: room.players
+      .filter(p => p.color !== 'tv-host')
+      .map(p => ({
+        name: p.name,
+        color: p.color,
+        connected: p.socketId !== null,
+        seat: seatForTvBingoColor(p.color)
+      }))
+  };
+}
+
+function handleTvBingoGameOver(io, roomId, room, engine) {
+  const ws = engine.winners();
+  const phonePlayers = room.players.filter(p => p.color !== 'tv-host');
+  ws.forEach(w => {
+    const wp = phonePlayers[w.seat];
+    if (wp) leaderboard.recordWin('tv-bingo', wp.name);
+  });
+  const winNames = ws.map(w => {
+    const wp = phonePlayers[w.seat];
+    return wp?.name || '?';
+  });
+  io.to(roomId).emit('game_over', {
+    winner: winNames.join(', '),
+    reason: `BINGO! ${winNames.join(' & ')} won!`
+  });
+  engines.delete(roomId);
+  roomGameTypes.delete(roomId);
+  analytics.logEvent('game_ended', roomId, 'server', 'auto-caller', { winner: winNames.join(', '), gameType: 'tv-bingo' });
+}
 
 function seatForBingoColor(color) { return BINGO_COLORS.indexOf(color); }
 
@@ -202,6 +257,75 @@ function rhythmPayload(roomId, room, engine) {
 
 const rhythmTimers = new Map(); // roomId → timeoutHandle
 
+// ── TV Higher or Lower helpers ──────────────────────────────────────────────
+const TV_HL_COLORS = ['tv-host', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'];
+
+function seatForTvHlColor(color) {
+  if (color === 'tv-host') return -1;
+  const idx = TV_HL_COLORS.indexOf(color);
+  return idx > 0 ? idx - 1 : -1; // p1=0, p2=1, ..., p8=7
+}
+
+function tvHlPayload(roomId, room, engine) {
+  const gs = engine.state();
+  return {
+    gameType: 'tv-higher-lower',
+    revealed:       gs.revealed,
+    currentCard:    gs.currentCard,
+    revealIndex:    gs.revealIndex,
+    deckSize:       gs.deckSize,
+    cardsRemaining: gs.cardsRemaining,
+    alive:          gs.alive,
+    currentSeat:    gs.currentSeat,
+    lastGuess:      gs.lastGuess,
+    isGameOver:     gs.isGameOver,
+    winnerSeat:     gs.winnerSeat,
+    playerCount:    gs.playerCount,
+    players: room.players
+      .filter(p => p.color !== 'tv-host')
+      .map(p => ({
+        name: p.name,
+        color: p.color,
+        connected: p.socketId !== null,
+        seat: seatForTvHlColor(p.color)
+      }))
+  };
+}
+
+// ── TV Boggle helpers ────────────────────────────────────────────────────────
+const TV_BOGGLE_COLORS = ['tv-host', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'];
+const tvBoggleTimers = new Map(); // roomId → timeoutHandle
+
+function seatForTvBoggleColor(color) {
+  if (color === 'tv-host') return -1;
+  const idx = TV_BOGGLE_COLORS.indexOf(color);
+  return idx > 0 ? idx - 1 : -1; // p1=0, p2=1, ..., p8=7
+}
+
+function tvBogglePayload(roomId, room, engine) {
+  const gs = engine.state();
+  return {
+    gameType: 'tv-boggle',
+    board:            gs.board,
+    timeLeft:         gs.timeLeft,
+    startTime:        gs.startTime,
+    roundSeconds:     gs.roundSeconds,
+    submissionCounts: gs.submissionCounts,
+    isGameOver:       gs.isGameOver,
+    scores:           gs.scores,
+    words:            gs.words,
+    playerCount:      gs.playerCount,
+    players: room.players
+      .filter(p => p.color !== 'tv-host')
+      .map(p => ({
+        name: p.name,
+        color: p.color,
+        connected: p.socketId !== null,
+        seat: seatForTvBoggleColor(p.color)
+      }))
+  };
+}
+
 module.exports = function wireEvents(io) {
   io.on('connection', socket => {
     console.log('connect', socket.id);
@@ -233,6 +357,9 @@ module.exports = function wireEvents(io) {
         else if (gameType === 'singapore-trivia')  colors = TRIVIA_COLORS.slice(0, 6); // up to 6
         else if (gameType === 'spot-the-difference') colors = DIFF_COLORS.slice(0, 6);
         else if (gameType === 'rhythm-tap')          colors = RHYTHM_COLORS.slice(0, 6);
+        else if (gameType === 'tv-bingo')          colors = TV_BINGO_COLORS.slice(); // 1 host + 8 players
+        else if (gameType === 'tv-higher-lower')   colors = TV_HL_COLORS.slice(); // 1 host + 8 players
+        else if (gameType === 'tv-boggle')           colors = TV_BOGGLE_COLORS.slice(); // 1 host + 8 players
         else                               colors = ['red', 'black'];
         targetRoomId = roomManager.createRoom({ colors });
         roomGameTypes.set(targetRoomId, gameType);
@@ -272,6 +399,12 @@ module.exports = function wireEvents(io) {
           socket.emit('game_state', diffPayload(targetRoomId, room, engine));
         } else if (gt === 'rhythm-tap') {
           socket.emit('game_state', rhythmPayload(targetRoomId, room, engine));
+        } else if (gt === 'tv-bingo') {
+          socket.emit('game_state', tvBingoPayload(targetRoomId, room, engine));
+        } else if (gt === 'tv-higher-lower') {
+          socket.emit('game_state', tvHlPayload(targetRoomId, room, engine));
+        } else if (gt === 'tv-boggle') {
+          socket.emit('game_state', tvBogglePayload(targetRoomId, room, engine));
         } else {
           socket.emit('game_state', gameStatePayload(targetRoomId, room, engine));
         }
@@ -481,7 +614,231 @@ module.exports = function wireEvents(io) {
       }
     });
 
-    // ── Boggle: submit a word ────────────────────────────────────────
+    // ── TV Bingo: host starts auto-call game ───────────────────────────
+    socket.on('tv_bingo_start', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      if (socket.data.color !== 'tv-host') return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+      if (engines.has(roomId)) return; // already started
+
+      const phonePlayers = room.players.filter(p => p.color !== 'tv-host');
+      if (phonePlayers.length < 1) {
+        return socket.emit('error', { message: 'Need at least 1 player to start.' });
+      }
+
+      const engine = createBingoGame(phonePlayers.length, { autoCallMode: true });
+      engines.set(roomId, engine);
+      roomGameTypes.set(roomId, 'tv-bingo');
+
+      io.to(roomId).emit('game_started', tvBingoPayload(roomId, room, engine));
+      analytics.logEvent('game_started', roomId, socket.id, 'tv-host', { gameType: 'tv-bingo', playerCount: phonePlayers.length });
+
+      // Auto-call: first number after 5s, then every 15s
+      const callAndBroadcast = () => {
+        const eng = engines.get(roomId);
+        const rm = roomManager.getRoom(roomId);
+        if (!eng || !rm) {
+          clearInterval(bingoAutoTimers.get(roomId));
+          bingoAutoTimers.delete(roomId);
+          return;
+        }
+
+        const result = eng.callNumber(-1);
+        if (!result.ok) {
+          clearInterval(bingoAutoTimers.get(roomId));
+          bingoAutoTimers.delete(roomId);
+          return;
+        }
+
+        io.to(roomId).emit('game_state', tvBingoPayload(roomId, rm, eng));
+        io.to(roomId).emit('tv_bingo_number_called', {
+          number: result.number,
+          column: BINGO_COLUMNS[Math.floor((result.number - 1) / 15)],
+          calledCount: eng.state().called.length,
+          totalNumbers: 75
+        });
+
+        // Note: game does NOT end from callNumber in autoCallMode.
+        // Game ends when a player marks their winning cell via tv_bingo_mark.
+        // But stop the timer if all 75 numbers have been called.
+        if (eng.state().pool.length === 0) {
+          clearInterval(bingoAutoTimers.get(roomId));
+          bingoAutoTimers.delete(roomId);
+        }
+      };
+
+      // First call after 5 seconds, then recurring every 15 seconds
+      const firstCallTimeout = setTimeout(() => {
+        callAndBroadcast();
+        // After first call, start recurring 15-second interval
+        const interval = setInterval(callAndBroadcast, 15_000);
+        bingoAutoTimers.set(roomId, interval);
+      }, 5_000);
+      bingoAutoTimers.set(roomId, firstCallTimeout);
+    });
+
+    // ── TV Bingo: player taps a cell to mark it ──────────────────────
+    socket.on('tv_bingo_mark', ({ row, col }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      if (!engine) return socket.emit('error', { message: 'Game not started' });
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      const seat = seatForTvBingoColor(socket.data.color);
+      if (seat < 0) return; // tv-host or spectator cannot mark
+
+      const result = engine.markCell(seat, row, col);
+
+      if (!result.ok) {
+        if (result.wrongTap) {
+          // Player tapped a number that hasn't been called — send feedback
+          socket.emit('tv_bingo_wrong_tap', { row, col, number: result.number, reason: result.reason });
+        }
+        return;
+      }
+
+      // Send updated state to the marking player (their card changed)
+      socket.emit('tv_bingo_mark_ok', { row, col, number: result.number });
+
+      // Broadcast full state so TV and all players see progress
+      io.to(roomId).emit('game_state', tvBingoPayload(roomId, room, engine));
+
+      // Check if this mark triggered BINGO
+      if (result.bingo) {
+        // Stop the auto-call timer
+        if (bingoAutoTimers.has(roomId)) {
+          clearInterval(bingoAutoTimers.get(roomId));
+          bingoAutoTimers.delete(roomId);
+        }
+        handleTvBingoGameOver(io, roomId, room, engine);
+      }
+    });
+
+    // ── TV Higher or Lower: host starts game ──────────────────────────
+    socket.on('tv_hl_start', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      if (socket.data.color !== 'tv-host') return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+      if (engines.has(roomId)) return; // already started
+
+      const phonePlayers = room.players.filter(p => p.color !== 'tv-host');
+      if (phonePlayers.length < 1) {
+        return socket.emit('error', { message: 'Need at least 1 player to start.' });
+      }
+
+      const engine = createHigherLowerGame(phonePlayers.length);
+      engines.set(roomId, engine);
+      roomGameTypes.set(roomId, 'tv-higher-lower');
+
+      io.to(roomId).emit('game_started', tvHlPayload(roomId, room, engine));
+      analytics.logEvent('game_started', roomId, socket.id, 'tv-host', { gameType: 'tv-higher-lower', playerCount: phonePlayers.length });
+    });
+
+    // ── TV Higher or Lower: player guesses ──────────────────────────────
+    socket.on('tv_hl_guess', ({ direction }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      if (!engine) return socket.emit('error', { message: 'Game not started' });
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      const seat = seatForTvHlColor(socket.data.color);
+      if (seat < 0) return; // tv-host or spectator cannot guess
+
+      const result = engine.guess(seat, direction);
+      if (!result.ok) return socket.emit('error', { message: result.reason });
+
+      // Broadcast the result for animation (TV and phones)
+      const phonePlayers = room.players.filter(p => p.color !== 'tv-host');
+      const guesserName = phonePlayers[seat]?.name || '?';
+      const eliminatedName = result.eliminatedSeat !== null
+        ? (phonePlayers[result.eliminatedSeat]?.name || '?')
+        : null;
+
+      io.to(roomId).emit('tv_hl_result', {
+        seat,
+        guesserName,
+        direction,
+        correct: result.correct,
+        revealedCard: result.revealedCard,
+        previousCard: result.previousCard,
+        eliminatedName
+      });
+
+      // Broadcast full state
+      io.to(roomId).emit('game_state', tvHlPayload(roomId, room, engine));
+
+      // Check game over
+      if (result.isGameOver) {
+        const winSeat = engine.winner();
+        const winPlayer = winSeat !== null ? phonePlayers[winSeat] : null;
+        if (winPlayer) leaderboard.recordWin('tv-higher-lower', winPlayer.name);
+        io.to(roomId).emit('game_over', {
+          winner: winPlayer?.name || null,
+          reason: winPlayer
+            ? `${winPlayer.name} is the last one standing!`
+            : 'Game over — no survivors!'
+        });
+        engines.delete(roomId);
+        roomGameTypes.delete(roomId);
+        analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: winPlayer?.name || null, gameType: 'tv-higher-lower' });
+      }
+    });
+
+    // ── TV Boggle: host starts game ─────────────────────────────────
+    socket.on('tv_boggle_start', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      if (socket.data.color !== 'tv-host') return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+      if (engines.has(roomId)) return; // already started
+
+      const phonePlayers = room.players.filter(p => p.color !== 'tv-host');
+      if (phonePlayers.length < 1) {
+        return socket.emit('error', { message: 'Need at least 1 player to start.' });
+      }
+
+      const engine = createBoggleGame(phonePlayers.length, { roundSeconds: 120 });
+      engines.set(roomId, engine);
+      roomGameTypes.set(roomId, 'tv-boggle');
+
+      io.to(roomId).emit('game_started', tvBogglePayload(roomId, room, engine));
+      analytics.logEvent('game_started', roomId, socket.id, 'tv-host', { gameType: 'tv-boggle', playerCount: phonePlayers.length });
+
+      // Auto-end round after 120 seconds (2 minutes)
+      const timer = setTimeout(() => {
+        const eng = engines.get(roomId);
+        const rm  = roomManager.getRoom(roomId);
+        if (!eng || !rm) return;
+        eng.endRound();
+        const payload = tvBogglePayload(roomId, rm, eng);
+        io.to(roomId).emit('game_state', payload);
+        // Determine winner and record
+        const winSeat = eng.winner();
+        const tvPhonePlayers = rm.players.filter(p => p.color !== 'tv-host');
+        const winPlayer = winSeat !== null ? tvPhonePlayers[winSeat] : null;
+        if (winPlayer) leaderboard.recordWin('tv-boggle', winPlayer.name);
+        io.to(roomId).emit('game_over', {
+          winner: winPlayer?.name || null,
+          reason: winPlayer ? `${winPlayer.name} wins with ${eng.state().scores[winSeat]} points!` : "Time's up!"
+        });
+        engines.delete(roomId);
+        roomGameTypes.delete(roomId);
+        tvBoggleTimers.delete(roomId);
+        analytics.logEvent('game_ended', roomId, 'timer', 'timer', { winner: winPlayer?.name || null, gameType: 'tv-boggle' });
+      }, 120_000);
+      tvBoggleTimers.set(roomId, timer);
+    });
+
+    // ── Boggle: submit a word (handles both 'boggle' and 'tv-boggle') ──
     socket.on('boggle_submit', ({ word }) => {
       const roomId = socket.data.roomId;
       if (!roomId) return;
@@ -490,7 +847,12 @@ module.exports = function wireEvents(io) {
       const room = roomManager.getRoom(roomId);
       if (!room) return;
 
-      const seat = seatForBoggleColor(socket.data.color);
+      const gt = roomGameTypes.get(roomId);
+      const seat = gt === 'tv-boggle'
+        ? seatForTvBoggleColor(socket.data.color)
+        : seatForBoggleColor(socket.data.color);
+      if (seat < 0) return; // tv-host or invalid color
+
       const result = engine.submitWord(seat, word);
       if (!result.ok) return socket.emit('boggle_reject', { word, reason: result.reason });
 
@@ -1003,12 +1365,24 @@ module.exports = function wireEvents(io) {
         clearTimeout(rhythmTimers.get(roomId));
         rhythmTimers.delete(roomId);
       }
+      // Clear any running TV Bingo auto-call timer
+      if (bingoAutoTimers.has(roomId)) {
+        clearInterval(bingoAutoTimers.get(roomId));
+        bingoAutoTimers.delete(roomId);
+      }
+      // Clear any running TV Boggle timer
+      if (tvBoggleTimers.has(roomId)) {
+        clearTimeout(tvBoggleTimers.get(roomId));
+        tvBoggleTimers.delete(roomId);
+      }
       // Clear engine so start_game can run fresh
       engines.delete(roomId);
       roomGameTypes.delete(roomId);
 
       // Tell everyone to return to the waiting screen
       io.to(roomId).emit('play_again');
+      // Re-broadcast room state so TV host re-evaluates the Start button
+      io.to(roomId).emit('room_update', roomSnapshot(room));
     });
 
     // ── Disconnect ──────────────────────────────────────────────────

@@ -19,5 +19,8 @@
     "express-rate-limit": "^8.2.1",
     "socket.io": "^4.8.3",
     "xiangqi": "^1.0.0"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
   }
 }

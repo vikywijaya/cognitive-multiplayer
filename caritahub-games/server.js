@@ -34,6 +34,36 @@ app.get('/join', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'lobby.html'));
 });
 
+// TV Bingo — TV display (host) page
+app.get('/tv-bingo', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tv-bingo.html'));
+});
+
+// TV Bingo — mobile player page (seniors scan QR to reach this)
+app.get('/tv-bingo-play', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tv-bingo-play.html'));
+});
+
+// TV Higher or Lower — TV display (host) page
+app.get('/tv-higher-lower', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tv-higher-lower.html'));
+});
+
+// TV Higher or Lower — mobile player page
+app.get('/tv-higher-lower-play', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tv-higher-lower-play.html'));
+});
+
+// TV Boggle — TV display (host) page
+app.get('/tv-boggle', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tv-boggle.html'));
+});
+
+// TV Boggle — mobile player page
+app.get('/tv-boggle-play', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tv-boggle-play.html'));
+});
+
 // Leaderboard endpoint
 app.get('/api/leaderboard', (req, res) => {
   const leaderboard = require('./src/leaderboard');

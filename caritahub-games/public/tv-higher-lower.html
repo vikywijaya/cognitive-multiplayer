@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CaritaHub TV Higher or Lower</title>
+  <link rel="stylesheet" href="/css/tv-higher-lower.css" />
+</head>
+<body>
+
+  <!-- ── Lobby Phase ── -->
+  <div id="lobbyPhase" class="tv-phase tv-lobby active">
+    <div class="tv-lobby-title">Higher or Lower</div>
+    <div class="tv-lobby-subtitle">Scan the QR code to join the game!</div>
+    <div class="tv-lobby-body">
+      <div class="tv-qr-section">
+        <div class="tv-qr-box">
+          <div id="qrcode"></div>
+        </div>
+        <div class="tv-qr-instruction">Scan with your phone camera</div>
+        <div id="joinUrl" class="tv-qr-url"></div>
+      </div>
+      <div class="tv-player-section">
+        <div class="tv-player-section-title">Players Joined</div>
+        <div id="lobbyPlayerList" class="tv-player-list">
+          <div class="tv-player-empty">Waiting for players...</div>
+        </div>
+        <button id="startBtn" class="tv-start-btn" disabled>Start Game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Playing Phase ── -->
+  <div id="playingPhase" class="tv-phase tv-playing">
+    <div class="tv-playing-header">
+      <div class="tv-playing-title">Higher or Lower</div>
+      <div id="cardsRemaining" class="tv-playing-count">30 cards left</div>
+    </div>
+
+    <div class="tv-playing-main">
+      <div class="tv-hero">
+        <div class="tv-hero-label">Current Card</div>
+        <div id="heroNumber" class="tv-hero-number">--</div>
+        <div id="turnIndicator" class="tv-turn-indicator">Waiting...</div>
+      </div>
+
+      <div id="cardGrid" class="tv-card-grid"></div>
+    </div>
+
+    <div id="playersStrip" class="tv-players-strip"></div>
+  </div>
+
+  <!-- ── Game Over Phase ── -->
+  <div id="gameoverPhase" class="tv-phase tv-gameover">
+    <div class="tv-gameover-emoji">🏆</div>
+    <div class="tv-gameover-title">WINNER!</div>
+    <div id="gameoverWinnerName" class="tv-gameover-winner-name"></div>
+    <div id="gameoverWinner" class="tv-gameover-winner"></div>
+    <div class="tv-gameover-btns">
+      <button id="playAgainBtn" class="tv-gameover-btn tv-btn-play-again">Play Again</button>
+    </div>
+  </div>
+
+  <!-- ── Confetti Container ── -->
+  <div id="confettiContainer" class="tv-confetti-container hidden"></div>
+
+  <!-- ── Reconnect Overlay ── -->
+  <div id="reconnectOverlay" class="tv-reconnect hidden">
+    Connection lost. Reconnecting...
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="/js/tv-higher-lower.js"></script>
+</body>
+</html>

@@ -1,0 +1,467 @@
+/* ── TV Bingo — optimized for 1080p TV display at 2–3m viewing distance ── */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  color: #fff;
+}
+
+/* ── Phase containers ── */
+.tv-phase { display: none; width: 100vw; height: 100vh; }
+.tv-phase.active { display: flex; }
+
+/* ── Lobby Phase ── */
+.tv-lobby {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3vh;
+}
+
+.tv-lobby-title {
+  font-size: 6vw;
+  font-weight: 900;
+  text-align: center;
+  text-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  letter-spacing: 0.05em;
+}
+
+.tv-lobby-subtitle {
+  font-size: 2.5vw;
+  color: #aab;
+  text-align: center;
+}
+
+.tv-lobby-body {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6vw;
+  width: 90vw;
+}
+
+.tv-qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2vh;
+}
+
+.tv-qr-box {
+  background: #fff;
+  border-radius: 1.5vw;
+  padding: 1.5vw;
+  box-shadow: 0 0 40px rgba(255,255,255,0.15);
+}
+
+.tv-qr-box canvas, .tv-qr-box img {
+  width: 28vh !important;
+  height: 28vh !important;
+}
+
+.tv-qr-instruction {
+  font-size: 2vw;
+  color: #ffd700;
+  font-weight: 700;
+  text-align: center;
+}
+
+.tv-qr-url {
+  font-size: 1.2vw;
+  color: #88a;
+  word-break: break-all;
+  text-align: center;
+  max-width: 35vw;
+}
+
+.tv-player-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5vh;
+  min-width: 25vw;
+}
+
+.tv-player-section-title {
+  font-size: 2.5vw;
+  font-weight: 700;
+  color: #ffd700;
+}
+
+.tv-player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+}
+
+.tv-player-item {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  font-size: 2.2vw;
+  font-weight: 600;
+  padding: 0.8vh 1.5vw;
+  background: rgba(255,255,255,0.08);
+  border-radius: 1vw;
+  border-left: 0.5vw solid #4ecca3;
+}
+
+.tv-player-empty {
+  font-size: 2vw;
+  color: #667;
+  font-style: italic;
+}
+
+.tv-start-btn {
+  font-size: 2.5vw;
+  font-weight: 800;
+  padding: 2vh 5vw;
+  background: #4ecca3;
+  color: #1a1a2e;
+  border: none;
+  border-radius: 1.5vw;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 20px rgba(78,204,163,0.4);
+}
+.tv-start-btn:hover { transform: scale(1.03); box-shadow: 0 6px 30px rgba(78,204,163,0.6); }
+.tv-start-btn:disabled {
+  background: #445;
+  color: #889;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* ── Playing Phase ── */
+.tv-playing {
+  flex-direction: column;
+  align-items: center;
+  padding: 2vh 3vw;
+}
+
+.tv-playing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 2vw;
+}
+
+.tv-playing-title {
+  font-size: 3vw;
+  font-weight: 800;
+}
+
+.tv-playing-count {
+  font-size: 2vw;
+  color: #aab;
+}
+
+.tv-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5vw;
+  margin: 2vh 0;
+}
+
+.tv-number-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tv-number-label {
+  font-size: 2vw;
+  color: #aab;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+.tv-number-value {
+  font-size: 16vw;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 4px 30px rgba(255,215,0,0.4);
+  color: #ffd700;
+  transition: transform 0.3s;
+}
+
+.tv-number-value.pop {
+  animation: tvPop 0.5s ease-out;
+}
+
+@keyframes tvPop {
+  0%   { transform: scale(0.5); opacity: 0; }
+  60%  { transform: scale(1.15); }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ── Countdown Ring ── */
+.tv-countdown-wrap {
+  position: relative;
+  width: 14vw;
+  height: 14vw;
+}
+
+.tv-countdown-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.tv-countdown-track {
+  fill: none;
+  stroke: rgba(255,255,255,0.1);
+  stroke-width: 6;
+}
+
+.tv-countdown-progress {
+  fill: none;
+  stroke: #4ecca3;
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear;
+}
+
+.tv-countdown-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 3.5vw;
+  font-weight: 800;
+  color: #fff;
+}
+
+.tv-countdown-sub {
+  position: absolute;
+  bottom: 15%;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 1.2vw;
+  color: #aab;
+}
+
+/* ── Called Numbers Grid (B/I/N/G/O board) ── */
+.tv-board {
+  display: flex;
+  gap: 0.4vw;
+  margin: 1.5vh 0;
+}
+
+.tv-board-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3vh;
+}
+
+.tv-board-col-header {
+  font-size: 2vw;
+  font-weight: 800;
+  padding: 0.5vh 0;
+  width: 5vw;
+  text-align: center;
+  border-radius: 0.5vw;
+}
+
+.tv-board-col-header.col-B { background: #1155cc; }
+.tv-board-col-header.col-I { background: #c0392b; }
+.tv-board-col-header.col-N { background: #1a6e1a; }
+.tv-board-col-header.col-G { background: #7d3c98; }
+.tv-board-col-header.col-O { background: #b7600a; }
+
+.tv-board-num {
+  width: 5vw;
+  height: 3vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3vw;
+  font-weight: 600;
+  border-radius: 0.3vw;
+  color: #556;
+  background: rgba(255,255,255,0.05);
+}
+
+.tv-board-num.called {
+  color: #fff;
+  font-weight: 800;
+}
+.tv-board-num.called.col-B { background: #1155cc; }
+.tv-board-num.called.col-I { background: #c0392b; }
+.tv-board-num.called.col-N { background: #1a6e1a; }
+.tv-board-num.called.col-G { background: #7d3c98; }
+.tv-board-num.called.col-O { background: #b7600a; }
+
+.tv-board-num.last-called {
+  outline: 3px solid #ffd700;
+  transform: scale(1.15);
+  z-index: 1;
+}
+
+/* ── Players Strip ── */
+.tv-players-strip {
+  display: flex;
+  gap: 1.5vw;
+  margin-top: auto;
+  padding: 1vh 0;
+}
+
+.tv-player-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.6vw;
+  font-size: 1.6vw;
+  font-weight: 600;
+  padding: 0.6vh 1.2vw;
+  background: rgba(255,255,255,0.08);
+  border-radius: 0.8vw;
+  border-left: 0.4vw solid #4ecca3;
+}
+
+.tv-player-chip.winner {
+  background: rgba(255,215,0,0.2);
+  border-left-color: #ffd700;
+  animation: tvWinnerChipPulse 1s ease-in-out infinite;
+}
+
+@keyframes tvWinnerChipPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,215,0,0.4); }
+  50% { box-shadow: 0 0 12px 4px rgba(255,215,0,0.3); }
+}
+
+.tv-player-name {
+  font-weight: 700;
+}
+
+.tv-player-progress {
+  font-size: 1.2vw;
+  color: #aab;
+  font-weight: 400;
+  margin-left: 0.5vw;
+}
+
+.tv-player-bingo {
+  color: #ffd700;
+  font-weight: 800;
+  margin-left: 0.5vw;
+  animation: tvBingoFlash 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes tvBingoFlash {
+  0% { opacity: 1; }
+  100% { opacity: 0.5; }
+}
+
+/* ── Game Over Phase ── */
+.tv-gameover {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3vh;
+}
+
+.tv-gameover-emoji {
+  font-size: 12vw;
+  animation: tvBounce 1s ease-in-out infinite alternate;
+}
+
+@keyframes tvBounce {
+  0%   { transform: scale(1); }
+  100% { transform: scale(1.1); }
+}
+
+.tv-gameover-title {
+  font-size: 10vw;
+  font-weight: 900;
+  color: #ffd700;
+  text-shadow: 0 4px 30px rgba(255,215,0,0.5);
+}
+
+.tv-gameover-winner {
+  font-size: 4vw;
+  font-weight: 700;
+}
+
+.tv-gameover-btns {
+  display: flex;
+  gap: 2vw;
+  margin-top: 2vh;
+}
+
+.tv-gameover-btn {
+  font-size: 2.5vw;
+  font-weight: 800;
+  padding: 2vh 4vw;
+  border: none;
+  border-radius: 1.5vw;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+}
+
+.tv-btn-play-again {
+  background: #4ecca3;
+  color: #1a1a2e;
+}
+
+.tv-btn-back {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+}
+
+/* ── Reconnect Overlay ── */
+.tv-reconnect {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3vw;
+  z-index: 100;
+}
+
+/* ── Confetti ── */
+.tv-confetti-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99;
+  overflow: hidden;
+}
+
+.tv-confetti-piece {
+  position: absolute;
+  top: -20px;
+  opacity: 0;
+  animation: tvConfettiFall 4s ease-in forwards;
+}
+
+@keyframes tvConfettiFall {
+  0%   { opacity: 1; top: -20px; transform: rotate(0deg) scale(1); }
+  100% { opacity: 0; top: 110vh; transform: rotate(720deg) scale(0.5); }
+}
+
+/* ── Winner name highlight ── */
+.tv-gameover-winner-name {
+  font-size: 6vw;
+  font-weight: 900;
+  color: #4ecca3;
+  text-shadow: 0 4px 20px rgba(78,204,163,0.5);
+  animation: tvWinnerPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes tvWinnerPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.hidden { display: none !important; }

@@ -44,6 +44,13 @@ const GAMES = {
     maxPlayers: 2,      // minimum to start; caller can begin with 2+
     hostColors: ['caller']
   },
+  'tv-bingo': {
+    title: 'TV Bingo',
+    subtitle: 'Smart TV Hosted — 1 to 8 Players',
+    gamePage: '/tv-bingo.html',
+    maxPlayers: 1,      // TV host + at least 1 phone player
+    hostColors: ['tv-host']
+  },
   boggle: {
     title: 'CaritaHub Boggle',
     subtitle: 'Word Hunt — 2 to 4 Players, 1-min round',
@@ -71,6 +78,20 @@ const GAMES = {
     gamePage: '/rhythm-tap.html',
     maxPlayers: 1,
     hostColors: ['p1']
+  },
+  'tv-higher-lower': {
+    title: 'TV Higher or Lower',
+    subtitle: 'Smart TV Card Game — 1 to 8 Players',
+    gamePage: '/tv-higher-lower.html',
+    maxPlayers: 1,
+    hostColors: ['tv-host']
+  },
+  'tv-boggle': {
+    title: 'TV Boggle',
+    subtitle: 'Smart TV Word Hunt — 2-min round',
+    gamePage: '/tv-boggle.html',
+    maxPlayers: 1,
+    hostColors: ['tv-host']
   }
 };
 

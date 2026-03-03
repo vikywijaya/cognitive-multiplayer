@@ -350,12 +350,13 @@ function canFormWord(board, word) {
   return false;
 }
 
-// ── Round timer (60 seconds) ──────────────────────────────────────────────────
-const ROUND_SECONDS = 60;
+// ── Round timer (default 60 seconds, configurable via options) ───────────────
+const DEFAULT_ROUND_SECONDS = 60;
 
-function createGame(playerCount = 2) {
-  if (playerCount < 2 || playerCount > 4) throw new Error('Boggle requires 2–4 players');
+function createGame(playerCount = 2, options = {}) {
+  if (playerCount < 1 || playerCount > 8) throw new Error('Boggle requires 1–8 players');
 
+  const roundSeconds = options.roundSeconds || DEFAULT_ROUND_SECONDS;
   const board = generateBoard();
   const startTime = Date.now();
 
@@ -368,7 +369,7 @@ function createGame(playerCount = 2) {
 
   function timeLeft() {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    return Math.max(0, ROUND_SECONDS - elapsed);
+    return Math.max(0, roundSeconds - elapsed);
   }
 
   function state() {
@@ -377,7 +378,7 @@ function createGame(playerCount = 2) {
       board,                          // flat 16-char array
       timeLeft: timeLeft(),
       startTime,
-      roundSeconds: ROUND_SECONDS,
+      roundSeconds,
       // During the round, only show each seat's own word count (keep submissions secret)
       submissionCounts: submissions.map(s => s.size),
       isGameOver: _isGameOver,

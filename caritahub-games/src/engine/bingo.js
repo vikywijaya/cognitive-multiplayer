@@ -9,18 +9,26 @@
  *    Center square (row2,col2) is FREE.
  *  - One player is the "caller" (seat 0, color = first in colors array).
  *    Caller calls numbers from the pool one at a time.
- *  - All players mark their cards automatically when a number is called.
+ *  - In standard mode, cards are auto-marked when a number is called.
+ *  - In autoCallMode (TV Bingo), players must manually tap to mark their
+ *    own cards. This ensures cognitive engagement (e.g. for seniors).
  *  - Win conditions (checked after each call):
  *    - Any row, column, or diagonal fully marked → BINGO!
  *    - Full card (full house) → FULL HOUSE!
  *  - Multiple winners can declare in the same call.
  *
  * Interface (matches CDI pattern):
- *   createGame(playerCount)  → engine object
+ *   createGame(playerCount, options)  → engine object
  *   engine.state()           → full state (no secrets; all cards visible)
  *   engine.callNumber(seat)  → { ok, reason, number } — caller draws next number
+ *   engine.markCell(seat,r,c)→ { ok, reason, number, bingo } — player taps a cell (autoCallMode only)
  *   engine.isGameOver()      → bool
  *   engine.winners()         → [{ seat, type }] array
+ *
+ * Options:
+ *   autoCallMode: false  — when true, callNumber(-1) is allowed for server-driven
+ *                          auto-calling (TV Bingo). No human caller seat needed.
+ *                          Cards are NOT auto-marked; players must call markCell().
  */
 
 const COLUMNS = ['B', 'I', 'N', 'G', 'O'];
@@ -93,8 +101,10 @@ function checkWins(marked) {
   return wins;
 }
 
-function createGame(playerCount = 2) {
-  if (playerCount < 2 || playerCount > 8) throw new Error('Bingo requires 2–8 players');
+function createGame(playerCount = 2, options = {}) {
+  const autoCallMode = options.autoCallMode || false;
+  const minPlayers = autoCallMode ? 1 : 2;
+  if (playerCount < minPlayers || playerCount > 8) throw new Error(`Bingo requires ${minPlayers}–8 players`);
 
   // Build number pool 1-75, shuffled
   const pool = shuffle(Array.from({ length: 75 }, (_, i) => i + 1));
@@ -109,7 +119,7 @@ function createGame(playerCount = 2) {
 
   function state() {
     return {
-      gameType: 'bingo',
+      gameType: autoCallMode ? 'tv-bingo' : 'bingo',
       pool: pool.slice(),          // remaining (for server; clients don't see)
       called: called.slice(),       // all called numbers
       lastCalled: called.length ? called[called.length - 1] : null,
@@ -118,34 +128,95 @@ function createGame(playerCount = 2) {
       isGameOver: _isGameOver,
       winners: _winners,
       playerCount,
-      callerSeat: 0,                // seat 0 is always the caller
+      callerSeat: autoCallMode ? -1 : 0, // -1 = auto/TV, 0 = human caller
+      autoCallMode,
     };
   }
 
   function callNumber(seat) {
-    if (seat !== 0) return { ok: false, reason: 'Only the caller can draw numbers' };
+    if (autoCallMode) {
+      if (seat !== -1) return { ok: false, reason: 'Auto-call mode: server calls only' };
+    } else {
+      if (seat !== 0) return { ok: false, reason: 'Only the caller can draw numbers' };
+    }
     if (_isGameOver)  return { ok: false, reason: 'Game is over' };
     if (pool.length === 0) return { ok: false, reason: 'All numbers have been called!' };
 
     const num = pool.pop();
     called.push(num);
 
-    // Mark all cards
-    for (let p = 0; p < playerCount; p++) {
-      for (let r = 0; r < CARD_SIZE; r++) {
-        for (let c = 0; c < CARD_SIZE; c++) {
-          if (cards[p][r][c] === num) {
-            marked[p][r][c] = true;
+    // In autoCallMode, do NOT auto-mark — players must tap manually
+    if (!autoCallMode) {
+      // Mark all cards (standard bingo with human caller)
+      for (let p = 0; p < playerCount; p++) {
+        for (let r = 0; r < CARD_SIZE; r++) {
+          for (let c = 0; c < CARD_SIZE; c++) {
+            if (cards[p][r][c] === num) {
+              marked[p][r][c] = true;
+            }
           }
         }
       }
+
+      // Check for new winners
+      const newWinners = _checkNewWinners();
+      return { ok: true, number: num, newWinners };
     }
 
-    // Check for new winners
+    // autoCallMode: just return the called number, no marking
+    return { ok: true, number: num, newWinners: [] };
+  }
+
+  /**
+   * Manual mark — player taps a cell on their card (autoCallMode only).
+   * Validates that the number at (row, col) has actually been called.
+   * Returns { ok, reason?, number?, bingo? }
+   */
+  function markCell(seat, row, col) {
+    if (!autoCallMode) return { ok: false, reason: 'Manual marking only in auto-call mode' };
+    if (_isGameOver)   return { ok: false, reason: 'Game is over' };
+    if (seat < 0 || seat >= playerCount) return { ok: false, reason: 'Invalid seat' };
+    if (row < 0 || row >= CARD_SIZE || col < 0 || col >= CARD_SIZE) {
+      return { ok: false, reason: 'Invalid cell' };
+    }
+    // Cannot mark the FREE cell (already marked)
+    if (row === FREE_ROW && col === FREE_COL) {
+      return { ok: false, reason: 'FREE cell is already marked' };
+    }
+    // Already marked
+    if (marked[seat][row][col]) {
+      return { ok: false, reason: 'Already marked' };
+    }
+
+    const num = cards[seat][row][col];
+
+    // Check if this number has been called
+    if (!called.includes(num)) {
+      return { ok: false, reason: 'This number has not been called yet', number: num, wrongTap: true };
+    }
+
+    // Mark the cell
+    marked[seat][row][col] = true;
+
+    // Check if this player just completed bingo
+    const wins = checkWins(marked[seat]);
+    const alreadyWon = _winners.find(w => w.seat === seat);
+    let bingo = false;
+
+    if (wins.length > 0 && !alreadyWon) {
+      _winners.push({ seat, types: wins });
+      _isGameOver = true;
+      bingo = true;
+    }
+
+    return { ok: true, number: num, bingo, wins: wins.length > 0 ? wins : undefined };
+  }
+
+  /** Internal: scan all players for new winners. */
+  function _checkNewWinners() {
     const newWinners = [];
     for (let p = 0; p < playerCount; p++) {
       const wins = checkWins(marked[p]);
-      // Only count if this player wasn't already a winner with these win types
       const alreadyWon = _winners.find(w => w.seat === p);
       if (wins.length > 0 && !alreadyWon) {
         newWinners.push({ seat: p, types: wins });
@@ -153,17 +224,15 @@ function createGame(playerCount = 2) {
     }
     if (newWinners.length > 0) {
       _winners.push(...newWinners);
-      // Game ends when at least one winner exists
       _isGameOver = true;
     }
-
-    return { ok: true, number: num, newWinners };
+    return newWinners;
   }
 
   function isGameOver() { return _isGameOver; }
   function winners() { return _winners; }
 
-  return { state, callNumber, isGameOver, winners };
+  return { state, callNumber, markCell, isGameOver, winners };
 }
 
 module.exports = { createGame, COLUMNS, CARD_SIZE, FREE_ROW, FREE_COL };

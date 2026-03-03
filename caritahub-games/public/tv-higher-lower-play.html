@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>CaritaHub Higher or Lower</title>
+  <style>
+    /* ── Mobile Higher or Lower Player — Senior-Accessible ── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .screen { display: none; min-height: 100vh; }
+    .screen.active { display: flex; flex-direction: column; }
+
+    /* ── Join Screen ── */
+    .join-screen {
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      gap: 20px;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+    }
+
+    .join-title {
+      font-size: 32px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .join-subtitle {
+      font-size: 18px;
+      color: #aab;
+      text-align: center;
+    }
+
+    .join-input {
+      width: 100%;
+      max-width: 400px;
+      font-size: 24px;
+      padding: 16px 20px;
+      border: 3px solid #4ecca3;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      text-align: center;
+      outline: none;
+    }
+    .join-input::placeholder { color: #889; }
+    .join-input:focus { border-color: #ffd700; background: rgba(255,255,255,0.15); }
+
+    .join-btn {
+      width: 100%;
+      max-width: 400px;
+      font-size: 22px;
+      font-weight: 700;
+      padding: 18px;
+      background: #4ecca3;
+      color: #1a1a2e;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+    }
+    .join-btn:disabled { background: #445; color: #889; cursor: not-allowed; }
+    .join-btn:active:not(:disabled) { transform: scale(0.98); }
+
+    .join-error {
+      font-size: 16px;
+      color: #ff6b6b;
+      text-align: center;
+      min-height: 24px;
+    }
+
+    /* ── Waiting Screen ── */
+    .waiting-screen {
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      gap: 16px;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+    }
+
+    .waiting-title {
+      font-size: 24px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .waiting-name {
+      font-size: 20px;
+      color: #4ecca3;
+      font-weight: 600;
+    }
+
+    .waiting-dots {
+      font-size: 28px;
+      animation: dotPulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes dotPulse {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    .waiting-players {
+      margin-top: 20px;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .waiting-players-title {
+      font-size: 16px;
+      color: #aab;
+      margin-bottom: 8px;
+    }
+
+    .waiting-player-item {
+      font-size: 18px;
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 8px;
+      margin-bottom: 6px;
+    }
+
+    /* ── Playing Screen ── */
+    .playing-screen {
+      background: linear-gradient(180deg, #1a1a2e 0%, #0f3460 100%);
+      color: #fff;
+      padding: 16px;
+      gap: 12px;
+      align-items: center;
+    }
+
+    /* Status section */
+    .status-section {
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+
+    .cards-remaining {
+      font-size: 14px;
+      color: #aab;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .current-card-display {
+      width: 120px;
+      height: 120px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 56px;
+      font-weight: 900;
+      color: #fff;
+      margin: 0 auto 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      border: 4px solid rgba(255,255,255,0.2);
+      transition: background 0.3s, transform 0.3s;
+    }
+
+    .current-card-label {
+      font-size: 16px;
+      color: #aab;
+      font-weight: 600;
+    }
+
+    /* Turn indicator */
+    .turn-indicator {
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+      padding: 12px 0;
+    }
+
+    .your-turn-text {
+      font-size: 28px;
+      font-weight: 800;
+      color: #4ecca3;
+      animation: turnPulse 1s ease-in-out infinite;
+    }
+
+    @keyframes turnPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.05); }
+    }
+
+    .waiting-turn-text {
+      font-size: 20px;
+      font-weight: 600;
+      color: #667;
+    }
+
+    /* Guess buttons */
+    .guess-buttons {
+      width: 100%;
+      max-width: 400px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .guess-btn {
+      width: 100%;
+      min-height: 80px;
+      font-size: 28px;
+      font-weight: 800;
+      border: none;
+      border-radius: 16px;
+      cursor: pointer;
+      color: #fff;
+      letter-spacing: 0.03em;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+
+    .guess-btn:active:not(:disabled) {
+      transform: scale(0.96);
+    }
+
+    .guess-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .guess-btn.higher {
+      background: #4ecca3;
+    }
+
+    .guess-btn.lower {
+      background: #1155cc;
+    }
+
+    /* Result feedback */
+    .result-feedback {
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      font-weight: 700;
+      border-radius: 12px;
+    }
+
+    .result-correct {
+      color: #4ecca3;
+      animation: flashGreen 0.6s ease-out;
+    }
+
+    @keyframes flashGreen {
+      0% { background: rgba(78, 204, 163, 0.4); }
+      100% { background: transparent; }
+    }
+
+    .result-wrong {
+      color: #ff6b6b;
+      animation: shakeRed 0.5s ease-out;
+    }
+
+    @keyframes shakeRed {
+      0% { background: rgba(255, 107, 107, 0.4); transform: translateX(0); }
+      20% { transform: translateX(-8px); }
+      40% { transform: translateX(8px); }
+      60% { transform: translateX(-4px); }
+      80% { transform: translateX(4px); }
+      100% { background: transparent; transform: translateX(0); }
+    }
+
+    /* Eliminated overlay */
+    .eliminated-overlay {
+      width: 100%;
+      max-width: 400px;
+      padding: 24px;
+      text-align: center;
+      background: rgba(255, 107, 107, 0.15);
+      border: 3px solid #ff6b6b;
+      border-radius: 16px;
+    }
+
+    .eliminated-text {
+      font-size: 32px;
+      font-weight: 800;
+      color: #ff6b6b;
+    }
+
+    .eliminated-sub {
+      font-size: 18px;
+      color: #aab;
+      margin-top: 8px;
+    }
+
+    /* History strip */
+    .history-strip {
+      display: flex;
+      gap: 6px;
+      padding: 10px 0;
+      overflow-x: auto;
+      width: 100%;
+      max-width: 400px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .history-card {
+      flex-shrink: 0;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+    }
+
+    .history-card.newest {
+      outline: 2px solid #ffd700;
+      outline-offset: 2px;
+    }
+
+    /* ── Game Over Screen ── */
+    .gameover-screen {
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      gap: 16px;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+    }
+
+    .gameover-emoji { font-size: 80px; }
+
+    .gameover-title {
+      font-size: 48px;
+      font-weight: 900;
+      color: #ffd700;
+    }
+
+    .gameover-msg {
+      font-size: 22px;
+      font-weight: 600;
+      text-align: center;
+      max-width: 350px;
+    }
+
+    .gameover-personal {
+      font-size: 28px;
+      font-weight: 800;
+      color: #4ecca3;
+      text-align: center;
+    }
+
+    /* ── Reconnect ── */
+    .reconnect-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: #fff;
+      z-index: 100;
+    }
+
+    /* ── Confetti ── */
+    .confetti-container {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 99;
+      overflow: hidden;
+    }
+    .confetti-piece {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      top: -10px;
+      opacity: 0;
+      animation: confettiFall 3s ease-in forwards;
+    }
+    @keyframes confettiFall {
+      0% { opacity: 1; top: -10px; transform: rotate(0deg) scale(1); }
+      100% { opacity: 0; top: 110vh; transform: rotate(720deg) scale(0.5); }
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Join Screen ── -->
+  <div id="joinScreen" class="screen join-screen active">
+    <div class="join-title">Higher or Lower</div>
+    <div class="join-subtitle">Enter your name to join</div>
+    <input id="nameInput" class="join-input" type="text" placeholder="Your Name" maxlength="30" autocomplete="off" />
+    <button id="joinBtn" class="join-btn">Join Game</button>
+    <div id="joinError" class="join-error"></div>
+  </div>
+
+  <!-- ── Waiting Screen ── -->
+  <div id="waitingScreen" class="screen waiting-screen">
+    <div class="waiting-title">Waiting for game to start</div>
+    <div class="waiting-dots">...</div>
+    <div id="waitingName" class="waiting-name"></div>
+    <div class="waiting-players">
+      <div class="waiting-players-title">Players in game:</div>
+      <div id="waitingPlayerList"></div>
+    </div>
+  </div>
+
+  <!-- ── Playing Screen ── -->
+  <div id="playingScreen" class="screen playing-screen">
+
+    <!-- Status: current card + remaining -->
+    <div class="status-section">
+      <div id="cardsRemaining" class="cards-remaining"></div>
+      <div id="currentCardDisplay" class="current-card-display">?</div>
+      <div id="currentCardLabel" class="current-card-label">Current Card</div>
+    </div>
+
+    <!-- Turn indicator -->
+    <div class="turn-indicator">
+      <div id="yourTurnText" class="your-turn-text hidden">Your Turn!</div>
+      <div id="waitingTurnText" class="waiting-turn-text hidden">Waiting...</div>
+    </div>
+
+    <!-- Guess buttons (only visible on your turn) -->
+    <div id="guessButtons" class="guess-buttons hidden">
+      <button id="higherBtn" class="guess-btn higher">Higher</button>
+      <button id="lowerBtn" class="guess-btn lower">Lower</button>
+    </div>
+
+    <!-- Result feedback area -->
+    <div id="resultFeedback" class="result-feedback"></div>
+
+    <!-- Eliminated overlay -->
+    <div id="eliminatedOverlay" class="eliminated-overlay hidden">
+      <div class="eliminated-text">You're out!</div>
+      <div class="eliminated-sub">Watch the others play on the TV</div>
+    </div>
+
+    <!-- History strip: last revealed cards -->
+    <div id="historyStrip" class="history-strip"></div>
+
+  </div>
+
+  <!-- ── Game Over Screen ── -->
+  <div id="gameoverScreen" class="screen gameover-screen">
+    <div id="gameoverEmoji" class="gameover-emoji"></div>
+    <div id="gameoverTitle" class="gameover-title">Game Over</div>
+    <div id="gameoverPersonal" class="gameover-personal"></div>
+    <div id="gameoverMsg" class="gameover-msg"></div>
+  </div>
+
+  <!-- ── Confetti Container ── -->
+  <div id="confettiContainer" class="confetti-container hidden"></div>
+
+  <!-- ── Reconnect Overlay ── -->
+  <div id="reconnectOverlay" class="reconnect-overlay hidden">
+    Connection lost. Reconnecting...
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/tv-higher-lower-play.js"></script>
+</body>
+</html>
