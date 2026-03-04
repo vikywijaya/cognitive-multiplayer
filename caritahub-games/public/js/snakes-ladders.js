@@ -534,11 +534,39 @@ function renderPlayers(state) {
 
 // ── Dice animation ────────────────────────────────────────────────────────────
 const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+
 function startDiceAnim() {
-  diceAnim = setInterval(() => { diceDisplay.textContent = DICE_FACES[Math.floor(Math.random() * 6)]; }, 80);
+  diceDisplay.classList.remove('landing');
+  diceDisplay.classList.add('rolling');
+  // Start slow, ramp up to fast
+  let delay = 160;
+  function spin() {
+    if (!diceAnim) return;
+    diceDisplay.textContent = DICE_FACES[Math.floor(Math.random() * 6)];
+    delay = Math.max(45, delay * 0.88);
+    diceAnim = setTimeout(spin, delay);
+  }
+  diceAnim = setTimeout(spin, delay);
 }
-function stopDiceAnim() { if (diceAnim) { clearInterval(diceAnim); diceAnim = null; } }
-function showDiceFace(n) { if (n >= 1 && n <= 6) diceDisplay.textContent = DICE_FACES[n - 1]; }
+
+function stopDiceAnim() {
+  if (diceAnim) { clearTimeout(diceAnim); diceAnim = null; }
+  diceDisplay.classList.remove('rolling');
+}
+
+function showDiceFace(n) {
+  if (n < 1 || n > 6) return;
+  diceDisplay.classList.remove('rolling', 'landing');
+  void diceDisplay.offsetWidth; // force reflow to restart animation
+  diceDisplay.textContent = DICE_FACES[n - 1];
+  diceDisplay.classList.add('landing');
+  // Flash the controls strip
+  const ctrl = document.getElementById('controls');
+  ctrl.classList.remove('dice-flash');
+  void ctrl.offsetWidth;
+  ctrl.classList.add('dice-flash');
+  setTimeout(() => ctrl.classList.remove('dice-flash'), 500);
+}
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 let toastTimer = null;
