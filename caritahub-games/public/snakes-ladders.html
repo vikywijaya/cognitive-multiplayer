@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>CaritaHub Snakes &amp; Ladders</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #1a1a2e;
+      color: #fff;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    #gameApp {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    /* ── Status bar ── */
+    #statusBar {
+      background: #16213e;
+      color: #f0c040;
+      text-align: center;
+      padding: 10px 16px;
+      font-size: 1rem;
+      font-weight: 700;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Board ── */
+    #boardWrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      background: #e8dfc8;
+      flex-shrink: 0;
+    }
+
+    #boardCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    /* Event toast overlaid on board */
+    #eventToast {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.82);
+      color: #fff;
+      padding: 8px 18px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 10;
+      transition: opacity 0.5s;
+    }
+    #eventToast.hidden  { display: none; }
+    #eventToast.fade-out { opacity: 0; }
+
+    /* ── Controls ── */
+    #controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      padding: 14px 16px;
+      background: #0f1b30;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    #diceDisplay {
+      font-size: 56px;
+      line-height: 1;
+      min-width: 60px;
+      text-align: center;
+      user-select: none;
+    }
+
+    #rollBtn {
+      font-size: 1.2rem;
+      font-weight: 800;
+      padding: 14px 36px;
+      background: #f0c040;
+      color: #1a1a2e;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      box-shadow: 0 4px 14px rgba(240,192,64,0.45);
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    #rollBtn:disabled {
+      background: #2a3550;
+      color: #556;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    #rollBtn:active:not(:disabled) { transform: scale(0.96); }
+
+    /* ── Players panel ── */
+    #playersPanel {
+      flex: 1;
+      padding: 10px 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      overflow-y: auto;
+    }
+
+    .player-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 13px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.05);
+      transition: background 0.2s;
+    }
+    .player-row.active {
+      background: rgba(240,192,64,0.14);
+      outline: 2px solid #f0c040;
+    }
+
+    .player-token {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+      color: #fff;
+      flex-shrink: 0;
+      border: 2px solid rgba(255,255,255,0.4);
+    }
+
+    .player-name {
+      flex: 1;
+      font-size: 15px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .player-name.me { color: #f0c040; }
+
+    .player-pos {
+      font-size: 13px;
+      color: #aab;
+      font-weight: 500;
+      min-width: 55px;
+      text-align: right;
+    }
+    .player-pos.winner { color: #ffd700; font-weight: 800; }
+
+    /* ── Game-over overlay ── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .overlay.hidden { display: none; }
+
+    .overlay-box {
+      background: #16213e;
+      border-radius: 18px;
+      padding: 36px 28px;
+      max-width: 340px;
+      width: 90%;
+      text-align: center;
+      color: #fff;
+    }
+    .overlay-box h2 { margin: 0 0 10px; font-size: 2.2rem; }
+    .overlay-box p  { margin: 0 0 24px; font-size: 1.1rem; color: #ccc; }
+    .overlay-btns   { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    .btn {
+      display: inline-block;
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 13px 26px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .btn-primary   { background: #f0c040; color: #1a1a2e; }
+    .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; }
+
+    /* ── Confetti ── */
+    #confettiContainer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 99;
+      overflow: hidden;
+    }
+    .confetti-piece {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      top: -10px;
+      opacity: 0;
+      animation: confettiFall 3s ease-in forwards;
+    }
+    @keyframes confettiFall {
+      0%   { opacity: 1; top: -10px; transform: rotate(0deg) scale(1); }
+      100% { opacity: 0; top: 110vh; transform: rotate(720deg) scale(0.5); }
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div id="gameApp">
+  <div id="statusBar">Loading game…</div>
+
+  <div id="boardWrap">
+    <canvas id="boardCanvas"></canvas>
+    <div id="eventToast" class="hidden"></div>
+  </div>
+
+  <div id="controls">
+    <div id="diceDisplay">⚀</div>
+    <button id="rollBtn" disabled>Roll Dice</button>
+  </div>
+
+  <div id="playersPanel"></div>
+</div>
+
+<!-- Game-over overlay -->
+<div id="gameOverlay" class="overlay hidden">
+  <div class="overlay-box">
+    <h2 id="gameOverTitle">Game Over</h2>
+    <p id="gameOverMsg"></p>
+    <div class="overlay-btns">
+      <button id="playAgainBtn" class="btn btn-primary">New Game</button>
+      <a href="/" class="btn btn-secondary">Home</a>
+    </div>
+  </div>
+</div>
+
+<div id="confettiContainer" class="hidden"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/snakes-ladders.js"></script>
+</body>
+</html>

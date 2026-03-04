@@ -106,6 +106,13 @@ const GAMES = {
     gamePage: '/tv-reversi.html',
     maxPlayers: 2,
     hostColors: ['tv-host']
+  },
+  'snakes-ladders': {
+    title: 'Snakes & Ladders',
+    subtitle: 'Classic board game — 2 to 6 players',
+    gamePage: '/snakes-ladders.html',
+    maxPlayers: 2,
+    hostColors: ['red']
   }
 };
 

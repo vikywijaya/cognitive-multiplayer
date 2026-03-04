@@ -10,7 +10,8 @@ const { createGame: createTriviaGame }     = require('../engine/singapore-trivia
 const { createGame: createDiffGame }       = require('../engine/spot-the-difference');
 const { createGame: createRhythmGame }     = require('../engine/rhythm-tap');
 const { createGame: createHigherLowerGame } = require('../engine/higher-lower');
-const { createGame: createReversiGame }     = require('../engine/reversi');
+const { createGame: createReversiGame }        = require('../engine/reversi');
+const { createGame: createSnakesLaddersGame } = require('../engine/snakes-ladders');
 const analytics = require('../analytics/clickhouse');
 const leaderboard = require('../leaderboard');
 
@@ -327,6 +328,29 @@ function tvBogglePayload(roomId, room, engine) {
   };
 }
 
+// ── Snakes & Ladders helpers ──────────────────────────────────────────────────
+const SL_COLORS = ['red', 'blue', 'green', 'purple', 'orange', 'cyan'];
+
+function seatForSlColor(color) { return SL_COLORS.indexOf(color); }
+
+function slPayload(roomId, room, engine) {
+  const gs = engine.state();
+  return {
+    gameType:    'snakes-ladders',
+    positions:   gs.positions,
+    currentSeat: gs.currentSeat,
+    isGameOver:  gs.isGameOver,
+    winner:      gs.winner,
+    lastRoll:    gs.lastRoll,
+    lastEvent:   gs.lastEvent,
+    playerCount: gs.playerCount,
+    players: room.players.map(p => ({
+      name: p.name, color: p.color, connected: p.socketId !== null,
+      seat: seatForSlColor(p.color)
+    }))
+  };
+}
+
 // ── TV Reversi helpers ────────────────────────────────────────────────────────
 const TV_REVERSI_COLORS = ['tv-host', 'black', 'white']; // tv-host = display, black moves first
 
@@ -402,6 +426,7 @@ module.exports = function wireEvents(io) {
         else if (gameType === 'tv-higher-lower')   colors = TV_HL_COLORS.slice(); // 1 host + 8 players
         else if (gameType === 'tv-boggle')           colors = TV_BOGGLE_COLORS.slice(); // 1 host + 8 players
         else if (gameType === 'tv-reversi')          colors = TV_REVERSI_COLORS.slice(); // 1 host + 2 players
+        else if (gameType === 'snakes-ladders')      colors = SL_COLORS.slice(0, 6); // up to 6 players
         else if (gameType === 'reversi')             colors = REVERSI_COLORS.slice();
         else                               colors = ['red', 'black'];
         targetRoomId = roomManager.createRoom({ colors });
@@ -450,6 +475,8 @@ module.exports = function wireEvents(io) {
           socket.emit('game_state', tvBogglePayload(targetRoomId, room, engine));
         } else if (gt === 'tv-reversi') {
           socket.emit('game_state', tvReversiPayload(targetRoomId, room, engine));
+        } else if (gt === 'snakes-ladders') {
+          socket.emit('game_state', slPayload(targetRoomId, room, engine));
         } else if (gt === 'reversi') {
           socket.emit('game_state', reversiPayload(targetRoomId, room, engine));
         } else {
@@ -490,6 +517,7 @@ module.exports = function wireEvents(io) {
       else if (gameType === 'singapore-trivia')  engine = createTriviaGame(room.players.length);
       else if (gameType === 'spot-the-difference') engine = createDiffGame(room.players.length);
       else if (gameType === 'rhythm-tap')          engine = createRhythmGame(room.players.length);
+      else if (gameType === 'snakes-ladders')      engine = createSnakesLaddersGame(room.players.length);
       else if (gameType === 'reversi')             engine = createReversiGame();
       else                               engine = createXiangqiGame();
       engines.set(roomId, engine);
@@ -533,6 +561,8 @@ module.exports = function wireEvents(io) {
         io.to(roomId).emit('game_started', diffPayload(roomId, room, engine));
       } else if (gameType === 'rhythm-tap') {
         io.to(roomId).emit('game_started', rhythmPayload(roomId, room, engine));
+      } else if (gameType === 'snakes-ladders') {
+        io.to(roomId).emit('game_started', slPayload(roomId, room, engine));
       } else if (gameType === 'reversi') {
         io.to(roomId).emit('game_started', reversiPayload(roomId, room, engine));
       } else {
@@ -1047,6 +1077,51 @@ module.exports = function wireEvents(io) {
           reason: winPlayer ? `${winPlayer.name} wins!` : "It's a draw!"
         });
         analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: winColor, gameType: 'tv-reversi' });
+        engines.delete(roomId);
+        roomGameTypes.delete(roomId);
+      }
+    });
+
+    // ── Snakes & Ladders: player rolls the dice ──────────────────────
+    socket.on('snakes_roll', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      if (!engine) return socket.emit('error', { message: 'Game not started' });
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      const seat = seatForSlColor(socket.data.color);
+      if (seat < 0) return socket.emit('error', { message: 'Not a valid player colour' });
+
+      const result = engine.roll(seat);
+      if (!result.ok) return socket.emit('error', { message: result.reason });
+
+      io.to(roomId).emit('snakes_roll_result', {
+        seat,
+        dice:        result.dice,
+        newPosition: result.newPosition,
+        snakeFrom:   result.snakeFrom,
+        snakeTo:     result.snakeTo,
+        ladderFrom:  result.ladderFrom,
+        ladderTo:    result.ladderTo,
+        stayed:      result.stayed,
+        won:         result.won,
+        playerName:  socket.data.playerName
+      });
+
+      const payload = slPayload(roomId, room, engine);
+      io.to(roomId).emit('game_state', payload);
+      analytics.logEvent('move_made', roomId, socket.id, socket.data.playerName, { dice: result.dice, gameType: 'snakes-ladders' });
+
+      if (result.won) {
+        const winPlayer = room.players.find(p => seatForSlColor(p.color) === engine.winner());
+        if (winPlayer) leaderboard.recordWin('snakes-ladders', winPlayer.name);
+        io.to(roomId).emit('game_over', {
+          winner: winPlayer?.color || null,
+          reason: winPlayer ? `${winPlayer.name} reached 100! 🏆` : 'Game over!'
+        });
+        analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: winPlayer?.color, gameType: 'snakes-ladders' });
         engines.delete(roomId);
         roomGameTypes.delete(roomId);
       }
