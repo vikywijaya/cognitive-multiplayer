@@ -53,21 +53,20 @@
       touch-action: none;
     }
 
-    /* Event toast overlaid on board */
+    /* Event toast above controls */
     #eventToast {
-      position: absolute;
-      bottom: 10px;
-      left: 50%;
-      transform: translateX(-50%);
+      position: relative;
+      margin: 8px 0 0 0;
       background: rgba(0,0,0,0.82);
       color: #fff;
-      padding: 8px 18px;
+      padding: 10px 20px;
       border-radius: 20px;
       font-size: 13px;
       font-weight: 600;
-      white-space: nowrap;
+      white-space: normal;
+      word-wrap: break-word;
+      text-align: center;
       pointer-events: none;
-      z-index: 10;
       transition: opacity 0.5s;
     }
     #eventToast.hidden  { display: none; }
@@ -294,13 +293,14 @@
 
   <div id="boardWrap">
     <canvas id="boardCanvas"></canvas>
-    <div id="eventToast" class="hidden"></div>
   </div>
 
   <div id="controls">
     <div id="diceDisplay"></div>
     <button id="rollBtn" disabled>Roll Dice</button>
   </div>
+
+  <div id="eventToast" class="hidden"></div>
 
   <div id="playersPanel"></div>
 </div>
