@@ -1,31 +1,30 @@
 'use strict';
 
-// ── URL params ────────────────────────────────────────────────────────────────
+const LADDERS = { 4:14, 9:31, 20:38, 28:84, 40:59, 51:67, 63:81, 71:91 };
+const SNAKES  = { 17:7, 54:34, 62:19, 64:60, 87:24, 93:73, 95:75, 99:78 };
+const LADDER_TOPS = new Set(Object.values(LADDERS));
+const SNAKE_TAILS = new Set(Object.values(SNAKES));
+
+const SL_COLORS = ['red', 'blue', 'green', 'purple', 'orange', 'cyan'];
+const COLOR_HEX = {
+  red: '#e74c3c', blue: '#3498db', green: '#27ae60',
+  purple: '#9b59b6', orange: '#e67e22', cyan: '#16a085'
+};
+const COLOR_LIGHT = {
+  red: '#f1948a', blue: '#85c1e9', green: '#82e0aa',
+  purple: '#c39bd3', orange: '#f0b27a', cyan: '#76d7c4'
+};
+const COLOR_DARK = {
+  red: '#c0392b', blue: '#2980b9', green: '#1e8449',
+  purple: '#7d3c98', orange: '#d35400', cyan: '#0e6655'
+};
+
 const params  = new URLSearchParams(window.location.search);
 const myRoom  = params.get('room');
 const myColor = params.get('color');
 const myName  = params.get('name') || 'You';
+const mySeat  = SL_COLORS.indexOf(myColor);
 
-// ── Board constants (mirror of server engine) ─────────────────────────────────
-const LADDERS = { 4:14, 9:31, 20:38, 28:84, 40:59, 51:67, 63:81, 71:91 };
-const SNAKES  = { 17:7, 54:34, 62:19, 64:60, 87:24, 93:73, 95:75, 99:78 };
-
-const LADDER_TOPS  = new Set(Object.values(LADDERS));
-const SNAKE_TAILS  = new Set(Object.values(SNAKES));
-
-// ── Player colours ────────────────────────────────────────────────────────────
-const SL_COLORS = ['red', 'blue', 'green', 'purple', 'orange', 'cyan'];
-const COLOR_HEX = {
-  red:    '#e74c3c',
-  blue:   '#3498db',
-  green:  '#27ae60',
-  purple: '#9b59b6',
-  orange: '#e67e22',
-  cyan:   '#16a085'
-};
-const mySeat = SL_COLORS.indexOf(myColor);
-
-// ── DOM refs ──────────────────────────────────────────────────────────────────
 const canvas        = document.getElementById('boardCanvas');
 const ctx           = canvas.getContext('2d');
 const statusBar     = document.getElementById('statusBar');
@@ -38,39 +37,91 @@ const gameOverMsg   = document.getElementById('gameOverMsg');
 const playAgainBtn  = document.getElementById('playAgainBtn');
 const eventToast    = document.getElementById('eventToast');
 
-let cellSize  = 0;
-let gameState = null;
-let diceAnim  = null;
+let cellSize         = 0;
+let gameState        = null;
+let diceAnim         = null;
+let pendingState     = null;
+let isAnimating      = false;
+let displayPositions = [];
 
-// ── Socket ────────────────────────────────────────────────────────────────────
+// ── Web Audio Sound FX ───────────────────────────────────────────────────────
+let audioCtx = null;
+function getAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function beep(freq, type, dur, vol, offset = 0) {
+  try {
+    const ac  = getAudio();
+    const osc = ac.createOscillator();
+    const g   = ac.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    const t = ac.currentTime + offset;
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(g); g.connect(ac.destination);
+    osc.start(t); osc.stop(t + dur + 0.05);
+  } catch (e) {}
+}
+
+function playDiceRoll() {
+  try {
+    const ac     = getAudio();
+    const bufLen = Math.floor(ac.sampleRate * 0.18);
+    const buf    = ac.createBuffer(1, bufLen, ac.sampleRate);
+    const data   = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufLen) * 0.6;
+    const src    = ac.createBufferSource();
+    src.buffer   = buf;
+    const filter = ac.createBiquadFilter();
+    filter.type  = 'highpass'; filter.frequency.value = 300;
+    const g = ac.createGain(); g.gain.value = 1;
+    src.connect(filter); filter.connect(g); g.connect(ac.destination);
+    src.start();
+  } catch (e) {}
+}
+
+function playMove()   { beep(700, 'sine', 0.06, 0.12); }
+function playLadder() { [350,500,650,850,1100].forEach((f, i) => beep(f, 'triangle', 0.15, 0.22, i * 0.1)); }
+function playSnake()  { [800,600,440,320,220].forEach((f, i) => beep(f, 'sawtooth', 0.15, 0.18, i * 0.1)); }
+function playStay()   { beep(180, 'sine', 0.3, 0.2); beep(160, 'sine', 0.25, 0.12, 0.12); }
+function playWin()    { [523,659,784,1047,1319].forEach((f, i) => beep(f, 'triangle', 0.3, 0.3, i * 0.18)); }
+
+// ── Socket ───────────────────────────────────────────────────────────────────
 const socket = io();
 
 socket.on('connect', () => {
-  socket.emit('join_game', {
-    roomId: myRoom,
-    playerName: myName,
-    reconnect: true,
-    gameType: 'snakes-ladders'
-  });
+  socket.emit('join_game', { roomId: myRoom, playerName: myName, reconnect: true, gameType: 'snakes-ladders' });
 });
 
 socket.on('game_started', (state) => {
   if (state.gameType !== 'snakes-ladders') return;
-  gameState = state;
+  gameState        = state;
+  displayPositions = [...state.positions];
+  pendingState     = null;
+  isAnimating      = false;
   applyState(state);
 });
 
 socket.on('game_state', (state) => {
   if (state.gameType !== 'snakes-ladders') return;
-  gameState = state;
-  stopDiceAnim();
-  applyState(state);
+  if (isAnimating) {
+    pendingState = state;
+  } else {
+    gameState        = state;
+    displayPositions = [...state.positions];
+    stopDiceAnim();
+    applyState(state);
+  }
 });
 
 socket.on('snakes_roll_result', ({ seat, dice, newPosition, snakeFrom, snakeTo, ladderFrom, ladderTo, stayed, playerName }) => {
   stopDiceAnim();
   showDiceFace(dice);
   showToast({ seat, dice, newPosition, snakeFrom, snakeTo, ladderFrom, ladderTo, stayed, playerName });
+  animateMove(seat, displayPositions[seat] ?? 0, newPosition, snakeFrom, snakeTo, ladderFrom, ladderTo, stayed);
 });
 
 socket.on('game_over', ({ winner, reason }) => {
@@ -78,291 +129,387 @@ socket.on('game_over', ({ winner, reason }) => {
   gameOverTitle.textContent = isWinner ? '🏆 You Win!' : 'Game Over';
   gameOverMsg.textContent   = reason || '';
   gameOverlay.classList.remove('hidden');
-  if (isWinner) {
-    launchConfetti();
-    if ('vibrate' in navigator) navigator.vibrate([300, 100, 300, 100, 300]);
-  }
+  if (isWinner) { launchConfetti(); playWin(); if ('vibrate' in navigator) navigator.vibrate([300,100,300,100,300]); }
 });
 
 socket.on('play_again', () => {
   gameOverlay.classList.add('hidden');
-  gameState = null;
-  drawEmptyBoard();
+  gameState        = null;
+  displayPositions = [];
+  drawEmpty();
   statusBar.textContent = 'Waiting for game to start…';
+  statusBar.classList.remove('my-turn');
   rollBtn.disabled = true;
+  rollBtn.classList.remove('pulse');
 });
 
 socket.on('error', ({ message }) => {
   statusBar.textContent = message;
-  rollBtn.disabled = gameState ? gameState.currentSeat !== mySeat : true;
+  rollBtn.disabled = gameState ? (gameState.currentSeat !== mySeat || isAnimating) : true;
 });
 
-// ── Roll ──────────────────────────────────────────────────────────────────────
+// ── Roll button ──────────────────────────────────────────────────────────────
 rollBtn.addEventListener('click', () => {
-  if (!gameState || gameState.currentSeat !== mySeat || gameState.isGameOver) return;
+  if (!gameState || gameState.currentSeat !== mySeat || gameState.isGameOver || isAnimating) return;
   rollBtn.disabled = true;
+  rollBtn.classList.remove('pulse');
   startDiceAnim();
+  playDiceRoll();
   socket.emit('snakes_roll');
   if ('vibrate' in navigator) navigator.vibrate(40);
 });
 
-playAgainBtn.addEventListener('click', () => {
-  window.location.href = '/lobby.html?game=snakes-ladders';
-});
+playAgainBtn.addEventListener('click', () => { window.location.href = '/lobby.html?game=snakes-ladders'; });
 
-// ── Apply state ───────────────────────────────────────────────────────────────
-function applyState(state) {
-  // Status
-  if (state.isGameOver) {
-    statusBar.textContent = 'Game over!';
-  } else {
-    const isMyTurn = state.currentSeat === mySeat;
-    if (isMyTurn) {
-      statusBar.textContent = 'Your turn — Roll the dice!';
-    } else {
-      const cur = state.players[state.currentSeat];
-      statusBar.textContent = `${cur?.name || 'Opponent'}'s turn…`;
-    }
+// ── Animation ────────────────────────────────────────────────────────────────
+function animateMove(seat, fromPos, finalPos, snakeFrom, snakeTo, ladderFrom, ladderTo, stayed) {
+  isAnimating = true;
+
+  if (stayed) {
+    playStay();
+    // Brief shake via position jitter
+    let n = 0;
+    const orig = displayPositions[seat];
+    const iv = setInterval(() => {
+      n++;
+      drawBoardDisplay();
+      if (n >= 6) { clearInterval(iv); displayPositions[seat] = orig; finishAnimation(); }
+    }, 80);
+    return;
   }
 
-  // Roll button
-  rollBtn.disabled = state.currentSeat !== mySeat || state.isGameOver;
+  // Intermediate square: where dice lands before snake/ladder
+  const intermediateLand = ladderFrom ?? snakeFrom ?? finalPos;
 
+  const steps = [];
+  for (let s = fromPos + 1; s <= intermediateLand; s++) steps.push(s);
+
+  if (steps.length === 0) { finishAnimation(); return; }
+
+  let idx = 0;
+  const STEP_MS = 55;
+
+  function tick() {
+    displayPositions[seat] = steps[idx];
+    drawBoardDisplay();
+    playMove();
+    idx++;
+
+    if (idx >= steps.length) {
+      // Arrived at intermediate; handle snake/ladder
+      if (ladderFrom) {
+        setTimeout(() => {
+          playLadder();
+          displayPositions[seat] = ladderTo;
+          drawBoardDisplay();
+          setTimeout(finishAnimation, 320);
+        }, 360);
+      } else if (snakeFrom) {
+        setTimeout(() => {
+          playSnake();
+          displayPositions[seat] = snakeTo;
+          drawBoardDisplay();
+          setTimeout(finishAnimation, 320);
+        }, 360);
+      } else {
+        setTimeout(finishAnimation, 200);
+      }
+      return;
+    }
+    setTimeout(tick, STEP_MS);
+  }
+  tick();
+}
+
+function finishAnimation() {
+  isAnimating = false;
+  if (pendingState) {
+    const s  = pendingState;
+    pendingState = null;
+    gameState        = s;
+    displayPositions = [...s.positions];
+    stopDiceAnim();
+    applyState(s);
+  } else if (gameState && gameState.currentSeat === mySeat && !gameState.isGameOver) {
+    rollBtn.disabled = false;
+    rollBtn.classList.add('pulse');
+  }
+}
+
+// ── Apply state ──────────────────────────────────────────────────────────────
+function applyState(state) {
+  const myTurn = state.currentSeat === mySeat && !state.isGameOver;
+  if (state.isGameOver) {
+    statusBar.textContent = 'Game over!';
+    statusBar.classList.remove('my-turn');
+  } else if (myTurn) {
+    statusBar.textContent = '🎲 Your turn — Roll the dice!';
+    statusBar.classList.add('my-turn');
+  } else {
+    const cur = state.players[state.currentSeat];
+    statusBar.textContent = `${cur?.name || 'Opponent'}'s turn…`;
+    statusBar.classList.remove('my-turn');
+  }
+  rollBtn.disabled = !myTurn || isAnimating;
+  rollBtn.classList.toggle('pulse', myTurn && !isAnimating);
   drawBoard(state);
   renderPlayers(state);
 }
 
-// ── Board rendering ───────────────────────────────────────────────────────────
+// ── Canvas sizing ────────────────────────────────────────────────────────────
+// Board = 10×10 grid. Below it: a "Start" strip of height 0.65 × cellSize
+const START_STRIP = 0.65;
+
 function squareToPos(num) {
   if (num < 1 || num > 100) return null;
   const idx      = num - 1;
   const boardRow = Math.floor(idx / 10);
   const col      = boardRow % 2 === 0 ? idx % 10 : 9 - (idx % 10);
-  const canvasRow = 9 - boardRow;
-  return { x: col * cellSize + cellSize / 2, y: canvasRow * cellSize + cellSize / 2 };
+  return { x: col * cellSize + cellSize / 2, y: (9 - boardRow) * cellSize + cellSize / 2 };
 }
 
 function resizeCanvas() {
-  const size   = canvas.parentElement.clientWidth;
-  canvas.width  = size;
-  canvas.height = size;
-  cellSize = size / 10;
-  if (gameState) drawBoard(gameState);
-  else drawEmptyBoard();
+  const w      = canvas.parentElement.clientWidth;
+  canvas.width  = w;
+  canvas.height = w + (w / 10) * START_STRIP;
+  cellSize      = w / 10;
+  if (gameState) drawBoardDisplay();
+  else drawEmpty();
 }
 
-function drawEmptyBoard() {
+// ── Draw helpers ─────────────────────────────────────────────────────────────
+function drawEmpty() {
   drawGrid();
   drawSnakesAndLadders();
+  drawStartArea([]);
+}
+
+function drawBoardDisplay() {
+  drawGrid();
+  drawSnakesAndLadders();
+  drawTokens(displayPositions, displayPositions.length);
+  drawStartArea(displayPositions);
 }
 
 function drawBoard(state) {
   drawGrid();
   drawSnakesAndLadders();
-  if (state) drawTokens(state);
+  drawTokens(state.positions, state.playerCount);
+  drawStartArea(state.positions);
 }
 
+// ── Grid ─────────────────────────────────────────────────────────────────────
 function drawGrid() {
-  const size = canvas.width;
-  ctx.clearRect(0, 0, size, size);
+  const w = canvas.width;
+  const boardH = 10 * cellSize;
+  ctx.clearRect(0, 0, w, canvas.height);
+
+  // Board background gradient
+  const bg = ctx.createLinearGradient(0, 0, w, boardH);
+  bg.addColorStop(0, '#fffdf0');
+  bg.addColorStop(1, '#fdf5cc');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, boardH);
 
   for (let r = 0; r < 10; r++) {
     for (let c = 0; c < 10; c++) {
       const boardRow = 9 - r;
-      const sq = boardRow % 2 === 0
-        ? boardRow * 10 + c + 1
-        : boardRow * 10 + (10 - c);
+      const sq = boardRow % 2 === 0 ? boardRow * 10 + c + 1 : boardRow * 10 + (10 - c);
 
-      // Cell background
-      let bg;
-      if (LADDERS[sq] !== undefined)    bg = '#c8f0d4'; // ladder bottom
-      else if (LADDER_TOPS.has(sq))     bg = '#a8e6bc'; // ladder top
-      else if (SNAKES[sq] !== undefined) bg = '#f5c6c4'; // snake head
-      else if (SNAKE_TAILS.has(sq))     bg = '#fadbd8'; // snake tail
-      else bg = (r + c) % 2 === 0 ? '#fdf6e3' : '#f0e8cc';
+      let fill;
+      if      (LADDERS[sq] !== undefined) fill = '#b2f2cc';
+      else if (LADDER_TOPS.has(sq))       fill = '#80e8a8';
+      else if (SNAKES[sq]  !== undefined) fill = '#ffc8c4';
+      else if (SNAKE_TAILS.has(sq))       fill = '#ffaaa6';
+      else fill = (r + c) % 2 === 0 ? '#fffdf0' : '#f5e8be';
 
-      ctx.fillStyle = bg;
+      ctx.fillStyle = fill;
       ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
 
-      // Square number (small, top-centre)
-      const fontSize = Math.max(7, cellSize * 0.19);
-      ctx.fillStyle = '#555';
-      ctx.font = `${fontSize}px sans-serif`;
+      // Square number
+      ctx.fillStyle = '#7a6030';
+      ctx.font = `600 ${Math.max(7, cellSize * 0.18)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillText(sq, c * cellSize + cellSize * 0.5, r * cellSize + 2);
 
-      // Grid border
-      ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+      // Grid lines
+      ctx.strokeStyle = 'rgba(0,0,0,0.07)';
       ctx.lineWidth = 0.5;
       ctx.strokeRect(c * cellSize, r * cellSize, cellSize, cellSize);
     }
   }
 
-  // Square 100 marker
+  // Gold star at square 100
   const p100 = squareToPos(100);
   if (p100) {
-    ctx.fillStyle = '#ffd700';
-    ctx.font = `bold ${Math.max(8, cellSize * 0.2)}px sans-serif`;
+    ctx.fillStyle = '#e6a800';
+    ctx.font = `bold ${Math.max(9, cellSize * 0.24)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('★', p100.x, p100.y + cellSize * 0.18);
+    ctx.fillText('★', p100.x, p100.y + cellSize * 0.15);
   }
+
+  // Board border
+  ctx.strokeStyle = '#c8a830';
+  ctx.lineWidth = 2.5;
+  ctx.strokeRect(1.5, 1.5, w - 3, boardH - 3);
 }
 
+// ── Start strip ──────────────────────────────────────────────────────────────
+function drawStartArea(positions) {
+  const w      = canvas.width;
+  const boardH = 10 * cellSize;
+  const stripH = START_STRIP * cellSize;
+
+  // Dark background
+  const g = ctx.createLinearGradient(0, boardH, 0, boardH + stripH);
+  g.addColorStop(0, '#0d1b2e');
+  g.addColorStop(1, '#162338');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, boardH, w, stripH);
+
+  // Separator line
+  ctx.strokeStyle = '#c8a830';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, boardH); ctx.lineTo(w, boardH);
+  ctx.stroke();
+
+  // "START" label
+  ctx.fillStyle = 'rgba(255,255,255,0.28)';
+  ctx.font = `bold ${Math.max(8, cellSize * 0.2)}px sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('START', 10, boardH + stripH * 0.5);
+
+  // Off-board tokens
+  const r        = Math.max(8, cellSize * 0.24);
+  const offSeats = [];
+  if (Array.isArray(positions)) {
+    positions.forEach((p, i) => { if (p === 0) offSeats.push(i); });
+  }
+  const startX = w * 0.40;
+  offSeats.forEach((seat, idx) => {
+    drawTokenAt(startX + idx * (r * 2.5), boardH + stripH * 0.5, r, seat);
+  });
+}
+
+// ── Snakes & Ladders graphics ─────────────────────────────────────────────────
 function drawSnakesAndLadders() {
   ctx.lineCap = 'round';
 
-  // ── Ladders ──────────────────────────────────────────────────────────
+  // Ladders
   for (const [fromStr, to] of Object.entries(LADDERS)) {
-    const from = parseInt(fromStr);
-    const p1   = squareToPos(from); // bottom
-    const p2   = squareToPos(to);   // top
+    const p1 = squareToPos(+fromStr), p2 = squareToPos(to);
     if (!p1 || !p2) continue;
-
-    const dx  = p2.x - p1.x;
-    const dy  = p2.y - p1.y;
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
     const len = Math.sqrt(dx * dx + dy * dy);
-    if (len === 0) continue;
-    const nx = (-dy / len) * cellSize * 0.13;
-    const ny = (dx  / len) * cellSize * 0.13;
+    if (!len) continue;
+    const nx = (-dy / len) * cellSize * 0.12, ny = (dx / len) * cellSize * 0.12;
 
-    ctx.strokeStyle = '#27ae60';
+    ctx.strokeStyle = '#1e8449';
     ctx.lineWidth   = Math.max(2, cellSize * 0.07);
+    ctx.beginPath(); ctx.moveTo(p1.x + nx, p1.y + ny); ctx.lineTo(p2.x + nx, p2.y + ny); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(p1.x - nx, p1.y - ny); ctx.lineTo(p2.x - nx, p2.y - ny); ctx.stroke();
 
-    // Left rail
-    ctx.beginPath();
-    ctx.moveTo(p1.x + nx, p1.y + ny);
-    ctx.lineTo(p2.x + nx, p2.y + ny);
-    ctx.stroke();
-
-    // Right rail
-    ctx.beginPath();
-    ctx.moveTo(p1.x - nx, p1.y - ny);
-    ctx.lineTo(p2.x - nx, p2.y - ny);
-    ctx.stroke();
-
-    // Rungs
-    const rungCount = Math.max(2, Math.floor(len / (cellSize * 0.9)));
+    const rungs = Math.max(2, Math.floor(len / (cellSize * 0.9)));
     ctx.lineWidth = Math.max(1.5, cellSize * 0.05);
-    for (let i = 1; i <= rungCount; i++) {
-      const t  = i / (rungCount + 1);
-      const rx = p1.x + dx * t;
-      const ry = p1.y + dy * t;
+    for (let i = 1; i <= rungs; i++) {
+      const t = i / (rungs + 1);
       ctx.beginPath();
-      ctx.moveTo(rx + nx, ry + ny);
-      ctx.lineTo(rx - nx, ry - ny);
+      ctx.moveTo(p1.x + dx * t + nx, p1.y + dy * t + ny);
+      ctx.lineTo(p1.x + dx * t - nx, p1.y + dy * t - ny);
       ctx.stroke();
     }
   }
 
-  // ── Snakes ────────────────────────────────────────────────────────────
+  // Snakes
   for (const [fromStr, to] of Object.entries(SNAKES)) {
-    const from = parseInt(fromStr);
-    const head = squareToPos(from); // head (high)
-    const tail = squareToPos(to);   // tail (low)
+    const head = squareToPos(+fromStr), tail = squareToPos(to);
     if (!head || !tail) continue;
-
-    const dx = tail.x - head.x;
-    const dy = tail.y - head.y;
-    const wobble = cellSize * 1.1;
+    const dx = tail.x - head.x, dy = tail.y - head.y;
+    const w  = cellSize * 1.1;
 
     ctx.strokeStyle = '#c0392b';
     ctx.lineWidth   = Math.max(3, cellSize * 0.11);
-    ctx.lineCap     = 'round';
-
     ctx.beginPath();
     ctx.moveTo(head.x, head.y);
-    ctx.bezierCurveTo(
-      head.x + wobble,       head.y + wobble * 0.6,
-      tail.x - wobble * 0.5, tail.y - wobble * 0.6,
-      tail.x, tail.y
-    );
+    ctx.bezierCurveTo(head.x + w, head.y + w * 0.6, tail.x - w * 0.5, tail.y - w * 0.6, tail.x, tail.y);
     ctx.stroke();
 
-    // Snake head dot
+    // Snake head
     ctx.fillStyle = '#e74c3c';
-    ctx.beginPath();
-    ctx.arc(head.x, head.y, Math.max(4, cellSize * 0.16), 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(head.x, head.y, Math.max(4, cellSize * 0.16), 0, Math.PI * 2); ctx.fill();
 
-    // Snake eyes (tiny white dots)
+    // Eyes
     const eyeR  = Math.max(1.5, cellSize * 0.04);
-    const angle = Math.atan2(dy, dx) + Math.PI; // direction from head to tail, then flip
+    const angle = Math.atan2(dy, dx) + Math.PI;
     ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.arc(head.x + Math.cos(angle + 0.5) * eyeR * 2.5, head.y + Math.sin(angle + 0.5) * eyeR * 2.5, eyeR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(head.x + Math.cos(angle - 0.5) * eyeR * 2.5, head.y + Math.sin(angle - 0.5) * eyeR * 2.5, eyeR, 0, Math.PI * 2);
-    ctx.fill();
+    [0.5, -0.5].forEach(off => {
+      ctx.beginPath();
+      ctx.arc(head.x + Math.cos(angle + off) * eyeR * 2.5, head.y + Math.sin(angle + off) * eyeR * 2.5, eyeR, 0, Math.PI * 2);
+      ctx.fill();
+    });
   }
 }
 
-function drawTokens(state) {
-  const r = Math.max(7, cellSize * 0.19);
+// ── Token drawing ─────────────────────────────────────────────────────────────
+function drawTokenAt(x, y, r, seat) {
+  const hex   = COLOR_HEX[SL_COLORS[seat]]   || '#888';
+  const light = COLOR_LIGHT[SL_COLORS[seat]]  || '#bbb';
+  const dark  = COLOR_DARK[SL_COLORS[seat]]   || '#555';
 
-  // Group by position
+  ctx.save();
+  ctx.shadowColor   = 'rgba(0,0,0,0.45)';
+  ctx.shadowBlur    = 7;
+  ctx.shadowOffsetY = 3;
+
+  const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.35, r * 0.05, x, y, r);
+  grad.addColorStop(0,   light);
+  grad.addColorStop(0.55, hex);
+  grad.addColorStop(1,   dark);
+
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = `bold ${Math.max(7, r * 0.9)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(seat + 1, x, y);
+}
+
+function drawTokens(positions, playerCount) {
+  const r     = Math.max(7, cellSize * 0.19);
   const byPos = new Map();
-  for (let seat = 0; seat < state.positions.length; seat++) {
-    const pos = state.positions[seat];
+  const count = playerCount || positions.length;
+  for (let seat = 0; seat < count; seat++) {
+    const pos = positions[seat];
+    if (pos === 0) continue; // drawn in start strip
     if (!byPos.has(pos)) byPos.set(pos, []);
     byPos.get(pos).push(seat);
   }
-
-  for (const [pos, seats] of byPos.entries()) {
+  for (const [pos, seats] of byPos) {
+    const centre = squareToPos(pos);
+    if (!centre) continue;
     let centres;
-
-    if (pos === 0) {
-      // Off-board: stack tokens in bottom-right corner
-      centres = seats.map((_, i) => ({
-        x: canvas.width - r - 3 - i * (r * 2 + 3),
-        y: canvas.height - r - 3
-      }));
+    if (seats.length === 1) {
+      centres = [{ x: centre.x, y: centre.y + cellSize * 0.1 }];
     } else {
-      const centre = squareToPos(pos);
-      if (!centre) continue;
-
-      if (seats.length === 1) {
-        centres = [{ x: centre.x, y: centre.y + cellSize * 0.12 }];
-      } else {
-        // Arrange in a circle
-        centres = seats.map((_, i) => {
-          const angle = (2 * Math.PI / seats.length) * i - Math.PI / 2;
-          const dist  = Math.min(r * 0.85, cellSize * 0.22);
-          return {
-            x: centre.x + Math.cos(angle) * dist,
-            y: centre.y + cellSize * 0.12 + Math.sin(angle) * dist
-          };
-        });
-      }
+      centres = seats.map((_, i) => {
+        const angle = (2 * Math.PI / seats.length) * i - Math.PI / 2;
+        const dist  = Math.min(r * 0.85, cellSize * 0.22);
+        return { x: centre.x + Math.cos(angle) * dist, y: centre.y + cellSize * 0.1 + Math.sin(angle) * dist };
+      });
     }
-
-    seats.forEach((seat, i) => {
-      const { x, y } = centres[i];
-      const hex      = COLOR_HEX[SL_COLORS[seat]] || '#888';
-
-      ctx.save();
-      ctx.shadowColor   = 'rgba(0,0,0,0.35)';
-      ctx.shadowBlur    = 5;
-      ctx.shadowOffsetY = 2;
-
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
-      ctx.fillStyle = hex;
-      ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth   = 2;
-      ctx.stroke();
-      ctx.restore();
-
-      // Seat number label
-      ctx.fillStyle    = '#fff';
-      ctx.font         = `bold ${Math.max(7, r * 0.85)}px sans-serif`;
-      ctx.textAlign    = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(seat + 1, x, y);
-    });
+    seats.forEach((seat, i) => drawTokenAt(centres[i].x, centres[i].y, r, seat));
   }
 }
 
@@ -370,64 +517,41 @@ function drawTokens(state) {
 function renderPlayers(state) {
   playersPanel.innerHTML = '';
   state.players.forEach((p, i) => {
-    const div      = document.createElement('div');
-    div.className  = 'player-row' + (i === state.currentSeat && !state.isGameOver ? ' active' : '');
-
+    const div = document.createElement('div');
+    div.className = 'player-row' + (i === state.currentSeat && !state.isGameOver ? ' active' : '');
     const hex   = COLOR_HEX[p.color] || '#888';
     const isMe  = p.color === myColor;
     const pos   = state.positions[i];
-    const posLabel = pos === 0 ? 'Start'
-      : pos === 100 ? '🏆 100'
-      : `Sq. ${pos}`;
-
+    const label = pos === 0 ? 'Start' : pos === 100 ? '🏆 100' : `Sq. ${pos}`;
     div.innerHTML = `
       <div class="player-token" style="background:${hex}">${i + 1}</div>
       <span class="player-name${isMe ? ' me' : ''}">${escHtml(p.name)}${isMe ? ' (You)' : ''}${!p.connected ? ' ⚡' : ''}</span>
-      <span class="player-pos${pos === 100 ? ' winner' : ''}">${posLabel}</span>
+      <span class="player-pos${pos === 100 ? ' winner' : ''}">${label}</span>
     `;
     playersPanel.appendChild(div);
   });
 }
 
 // ── Dice animation ────────────────────────────────────────────────────────────
-const DICE_FACES = ['⚀','⚁','⚂','⚃','⚄','⚅'];
-
+const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 function startDiceAnim() {
-  diceAnim = setInterval(() => {
-    diceDisplay.textContent = DICE_FACES[Math.floor(Math.random() * 6)];
-  }, 80);
+  diceAnim = setInterval(() => { diceDisplay.textContent = DICE_FACES[Math.floor(Math.random() * 6)]; }, 80);
 }
+function stopDiceAnim() { if (diceAnim) { clearInterval(diceAnim); diceAnim = null; } }
+function showDiceFace(n) { if (n >= 1 && n <= 6) diceDisplay.textContent = DICE_FACES[n - 1]; }
 
-function stopDiceAnim() {
-  if (diceAnim) { clearInterval(diceAnim); diceAnim = null; }
-}
-
-function showDiceFace(num) {
-  if (num >= 1 && num <= 6) diceDisplay.textContent = DICE_FACES[num - 1];
-}
-
-// ── Toast notification ────────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────────────────
 let toastTimer = null;
-
 function showToast({ seat, dice, newPosition, snakeFrom, snakeTo, ladderFrom, ladderTo, stayed, playerName }) {
-  const name = seat === mySeat ? 'You' : (playerName || `Player ${seat + 1}`);
+  const name = seat === mySeat ? 'You' : (playerName || `P${seat + 1}`);
   let msg;
-
-  if (ladderFrom) {
-    msg = `${name} rolled ${dice} — Ladder! ↑ ${ladderFrom} → ${ladderTo}`;
-  } else if (snakeFrom) {
-    msg = `${name} rolled ${dice} — Snake! ↓ ${snakeFrom} → ${snakeTo}`;
-  } else if (stayed) {
-    msg = `${name} rolled ${dice} — Too high, stays at ${newPosition}`;
-  } else if (newPosition === 100) {
-    msg = `${name} rolled ${dice} and reached 100! 🏆`;
-  } else {
-    msg = `${name} rolled ${dice} — moved to ${newPosition}`;
-  }
-
+  if      (ladderFrom)          msg = `${name} rolled ${dice} 🪜 Ladder! ${ladderFrom} → ${ladderTo}`;
+  else if (snakeFrom)           msg = `${name} rolled ${dice} 🐍 Snake! ${snakeFrom} → ${snakeTo}`;
+  else if (stayed)              msg = `${name} rolled ${dice} — too high, stays at ${newPosition}`;
+  else if (newPosition === 100) msg = `${name} rolled ${dice} 🏆 Reached 100!`;
+  else                          msg = `${name} rolled ${dice} → square ${newPosition}`;
   eventToast.textContent = msg;
   eventToast.classList.remove('hidden', 'fade-out');
-
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => eventToast.classList.add('fade-out'), 3200);
   setTimeout(() => eventToast.classList.add('hidden'), 3800);
@@ -435,30 +559,24 @@ function showToast({ seat, dice, newPosition, snakeFrom, snakeTo, ladderFrom, la
 
 // ── Confetti ──────────────────────────────────────────────────────────────────
 function launchConfetti() {
-  const container = document.getElementById('confettiContainer');
-  if (!container) return;
-  container.classList.remove('hidden');
-  container.innerHTML = '';
-  const colors = ['#ffd700','#ff6b6b','#4ecca3','#3498db','#9b59b6','#ff9f43'];
+  const el = document.getElementById('confettiContainer');
+  if (!el) return;
+  el.classList.remove('hidden');
+  el.innerHTML = '';
+  const cols = ['#ffd700', '#ff6b6b', '#4ecca3', '#3498db', '#9b59b6', '#ff9f43'];
   for (let i = 0; i < 80; i++) {
-    const piece = document.createElement('div');
-    piece.className = 'confetti-piece';
-    piece.style.left = `${Math.random() * 100}%`;
-    piece.style.background = colors[Math.floor(Math.random() * colors.length)];
-    piece.style.animationDelay    = `${Math.random() * 2}s`;
-    piece.style.animationDuration = `${2.5 + Math.random() * 1.5}s`;
-    if (Math.random() > 0.5) piece.style.borderRadius = '50%';
+    const p = document.createElement('div');
+    p.className = 'confetti-piece';
+    p.style.cssText = `left:${Math.random() * 100}%;background:${cols[i % cols.length]};animation-delay:${Math.random() * 2}s;animation-duration:${2.5 + Math.random() * 1.5}s;`;
+    if (Math.random() > 0.5) p.style.borderRadius = '50%';
     const s = `${6 + Math.random() * 8}px`;
-    piece.style.width = s; piece.style.height = s;
-    container.appendChild(piece);
+    p.style.width = s; p.style.height = s;
+    el.appendChild(p);
   }
-  setTimeout(() => { container.classList.add('hidden'); container.innerHTML = ''; }, 5000);
+  setTimeout(() => { el.classList.add('hidden'); el.innerHTML = ''; }, 5000);
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 new ResizeObserver(resizeCanvas).observe(canvas.parentElement);

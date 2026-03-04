@@ -42,14 +42,13 @@
     #boardWrap {
       position: relative;
       width: 100%;
-      aspect-ratio: 1;
       background: #e8dfc8;
       flex-shrink: 0;
     }
 
     #boardCanvas {
       width: 100%;
-      height: 100%;
+      height: auto;
       display: block;
       touch-action: none;
     }
@@ -113,6 +112,18 @@
       box-shadow: none;
     }
     #rollBtn:active:not(:disabled) { transform: scale(0.96); }
+    #rollBtn.pulse {
+      animation: btnPulse 1.1s ease-in-out infinite;
+    }
+    @keyframes btnPulse {
+      0%, 100% { box-shadow: 0 4px 14px rgba(240,192,64,0.45); }
+      50%       { box-shadow: 0 4px 28px rgba(240,192,64,0.9), 0 0 0 6px rgba(240,192,64,0.18); }
+    }
+
+    #statusBar.my-turn {
+      color: #ffe066;
+      background: #1a2e1a;
+    }
 
     /* ── Players panel ── */
     #playersPanel {
