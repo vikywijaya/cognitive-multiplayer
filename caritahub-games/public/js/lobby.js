@@ -99,6 +99,13 @@ const GAMES = {
     gamePage: '/reversi-game.html',
     maxPlayers: 2,
     hostColors: ['black']
+  },
+  'tv-reversi': {
+    title: 'TV Reversi',
+    subtitle: 'Smart TV Reversi — 2 Players',
+    gamePage: '/tv-reversi.html',
+    maxPlayers: 2,
+    hostColors: ['tv-host']
   }
 };
 

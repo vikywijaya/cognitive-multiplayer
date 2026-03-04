@@ -327,6 +327,26 @@ function tvBogglePayload(roomId, room, engine) {
   };
 }
 
+// ── TV Reversi helpers ────────────────────────────────────────────────────────
+const TV_REVERSI_COLORS = ['tv-host', 'black', 'white']; // tv-host = display, black moves first
+
+function tvReversiPayload(roomId, room, engine) {
+  const gs = engine.state();
+  return {
+    gameType:    'tv-reversi',
+    board:       gs.board,
+    turn:        gs.turn,
+    validMoves:  gs.validMoves,
+    discs:       gs.discs,
+    isGameOver:  gs.isGameOver,
+    winner:      gs.winner,
+    skippedLast: gs.skippedLast,
+    players: room.players
+      .filter(p => p.color !== 'tv-host')
+      .map(p => ({ name: p.name, color: p.color, connected: p.socketId !== null }))
+  };
+}
+
 // ── Reversi helpers ──────────────────────────────────────────────────────────
 const REVERSI_COLORS = ['black', 'white']; // black moves first
 
@@ -381,6 +401,7 @@ module.exports = function wireEvents(io) {
         else if (gameType === 'tv-bingo')          colors = TV_BINGO_COLORS.slice(); // 1 host + 8 players
         else if (gameType === 'tv-higher-lower')   colors = TV_HL_COLORS.slice(); // 1 host + 8 players
         else if (gameType === 'tv-boggle')           colors = TV_BOGGLE_COLORS.slice(); // 1 host + 8 players
+        else if (gameType === 'tv-reversi')          colors = TV_REVERSI_COLORS.slice(); // 1 host + 2 players
         else if (gameType === 'reversi')             colors = REVERSI_COLORS.slice();
         else                               colors = ['red', 'black'];
         targetRoomId = roomManager.createRoom({ colors });
@@ -427,6 +448,8 @@ module.exports = function wireEvents(io) {
           socket.emit('game_state', tvHlPayload(targetRoomId, room, engine));
         } else if (gt === 'tv-boggle') {
           socket.emit('game_state', tvBogglePayload(targetRoomId, room, engine));
+        } else if (gt === 'tv-reversi') {
+          socket.emit('game_state', tvReversiPayload(targetRoomId, room, engine));
         } else if (gt === 'reversi') {
           socket.emit('game_state', reversiPayload(targetRoomId, room, engine));
         } else {
@@ -966,6 +989,67 @@ module.exports = function wireEvents(io) {
       engines.delete(roomId);
       roomGameTypes.delete(roomId);
       analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: winnerColor, gameType: 'boggle' });
+    });
+
+    // ── TV Reversi: host starts game ────────────────────────────────
+    socket.on('tv_reversi_start', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      if (socket.data.color !== 'tv-host') return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+      if (engines.has(roomId)) return; // already started
+
+      const phonePlayers = room.players.filter(p => p.color !== 'tv-host');
+      if (phonePlayers.length < 2) {
+        return socket.emit('error', { message: 'Need 2 players to start.' });
+      }
+
+      const engine = createReversiGame();
+      engines.set(roomId, engine);
+      roomGameTypes.set(roomId, 'tv-reversi');
+
+      io.to(roomId).emit('game_started', tvReversiPayload(roomId, room, engine));
+      analytics.logEvent('game_started', roomId, socket.id, 'tv-host', { gameType: 'tv-reversi' });
+    });
+
+    // ── TV Reversi: player places a disc ────────────────────────────
+    socket.on('tv_reversi_move', ({ row, col }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      if (!engine) return socket.emit('invalid_move', { reason: 'Game not started' });
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      const playerColor = socket.data.color; // 'black' | 'white'
+      if (playerColor === 'tv-host') return;
+
+      const engineTurn = engine.turn(); // 'B' | 'W'
+      const isMyTurn   = (engineTurn === 'B' && playerColor === 'black') ||
+                         (engineTurn === 'W' && playerColor === 'white');
+      if (!isMyTurn) return socket.emit('invalid_move', { reason: 'Not your turn' });
+      if (engine.isGameOver()) return socket.emit('invalid_move', { reason: 'Game is over' });
+
+      const result = engine.move(row, col);
+      if (!result.ok) return socket.emit('invalid_move', { reason: result.reason });
+
+      const payload = tvReversiPayload(roomId, room, engine);
+      io.to(roomId).emit('game_state', payload);
+      analytics.logEvent('move_made', roomId, socket.id, socket.data.playerName, { row, col, gameType: 'tv-reversi' });
+
+      if (payload.isGameOver) {
+        const winColor = payload.winner === 'B' ? 'black' : payload.winner === 'W' ? 'white' : null;
+        const winPlayer = winColor ? room.players.find(p => p.color === winColor) : null;
+        if (winPlayer) leaderboard.recordWin('tv-reversi', winPlayer.name);
+        io.to(roomId).emit('game_over', {
+          winner: winPlayer?.name || null,
+          reason: winPlayer ? `${winPlayer.name} wins!` : "It's a draw!"
+        });
+        analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: winColor, gameType: 'tv-reversi' });
+        engines.delete(roomId);
+        roomGameTypes.delete(roomId);
+      }
     });
 
     // ── Singapore Trivia: host starts/advances question ─────────────

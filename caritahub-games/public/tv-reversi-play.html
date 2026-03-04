@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>CaritaHub TV Reversi</title>
+  <style>
+    /* ── Mobile TV Reversi Player ── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #0a1f0a;
+      color: #fff;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    .screen { display: none; min-height: 100vh; }
+    .screen.active { display: flex; flex-direction: column; }
+
+    /* ── Join Screen ── */
+    .join-screen {
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      gap: 20px;
+      background: linear-gradient(135deg, #0a1f0a 0%, #162e16 100%);
+    }
+
+    .join-title {
+      font-size: 30px;
+      font-weight: 800;
+      text-align: center;
+      color: #4ecca3;
+    }
+
+    .join-subtitle {
+      font-size: 18px;
+      color: #aab;
+      text-align: center;
+    }
+
+    .join-input {
+      width: 100%;
+      max-width: 400px;
+      font-size: 24px;
+      padding: 16px 20px;
+      border: 3px solid #4ecca3;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.07);
+      color: #fff;
+      text-align: center;
+      outline: none;
+    }
+    .join-input::placeholder { color: #556; }
+    .join-input:focus { border-color: #ffd700; background: rgba(255,255,255,0.12); }
+
+    .join-btn {
+      width: 100%;
+      max-width: 400px;
+      font-size: 22px;
+      font-weight: 700;
+      padding: 18px;
+      background: #4ecca3;
+      color: #0a1f0a;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+    }
+    .join-btn:disabled { background: #334; color: #556; cursor: not-allowed; }
+    .join-btn:active:not(:disabled) { transform: scale(0.98); }
+
+    .join-error {
+      font-size: 16px;
+      color: #ff6b6b;
+      text-align: center;
+      min-height: 24px;
+    }
+
+    /* ── Waiting Screen ── */
+    .waiting-screen {
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      gap: 16px;
+      background: linear-gradient(135deg, #0a1f0a 0%, #162e16 100%);
+    }
+
+    .waiting-title {
+      font-size: 24px;
+      font-weight: 700;
+      text-align: center;
+      color: #4ecca3;
+    }
+
+    .waiting-name {
+      font-size: 20px;
+      color: #ffd700;
+      font-weight: 600;
+    }
+
+    .waiting-dots {
+      font-size: 28px;
+      animation: dotPulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes dotPulse {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    .waiting-players {
+      margin-top: 20px;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .waiting-players-title {
+      font-size: 16px;
+      color: #aab;
+      margin-bottom: 8px;
+    }
+
+    .waiting-player-item {
+      font-size: 18px;
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 8px;
+      margin-bottom: 6px;
+      border-left: 4px solid #4ecca3;
+    }
+
+    /* ── Playing Screen ── */
+    .playing-screen {
+      background: #0a1f0a;
+    }
+
+    .score-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: rgba(0,0,0,0.4);
+    }
+
+    .score-player {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+    .score-player.active {
+      background: rgba(255,215,0,0.2);
+      outline: 2px solid #ffd700;
+    }
+
+    .score-disc {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .disc-black-icon { background: radial-gradient(circle at 35% 35%, #555, #111); border: 1.5px solid #333; }
+    .disc-white-icon { background: radial-gradient(circle at 35% 35%, #fff, #ccc); border: 1.5px solid #aaa; }
+
+    .score-count {
+      font-size: 22px;
+      font-weight: 900;
+      color: #ffd700;
+      min-width: 28px;
+      text-align: center;
+    }
+
+    .score-name {
+      max-width: 80px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .status-bar {
+      background: #162e16;
+      color: #4ecca3;
+      text-align: center;
+      padding: 8px 12px;
+      font-size: 15px;
+      font-weight: 700;
+      min-height: 36px;
+      border-bottom: 1px solid rgba(78,204,163,0.2);
+    }
+
+    .board-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      flex-shrink: 0;
+      background: #2d6a4f;
+    }
+
+    #boardCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .my-turn-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      border: 4px solid #ffd700;
+      box-shadow: inset 0 0 20px rgba(255,215,0,0.15);
+      display: none;
+    }
+    .my-turn-overlay.visible { display: block; }
+
+    /* ── Game Over Screen ── */
+    .gameover-screen {
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+      gap: 16px;
+      background: linear-gradient(135deg, #0a1f0a 0%, #162e16 100%);
+    }
+
+    .gameover-emoji { font-size: 80px; }
+
+    .gameover-title {
+      font-size: 48px;
+      font-weight: 900;
+      color: #ffd700;
+    }
+
+    .gameover-personal {
+      font-size: 28px;
+      font-weight: 800;
+      color: #4ecca3;
+      text-align: center;
+    }
+
+    .gameover-msg {
+      font-size: 20px;
+      color: #aab;
+      text-align: center;
+      max-width: 350px;
+    }
+
+    /* ── Reconnect ── */
+    .reconnect-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      color: #fff;
+      z-index: 100;
+    }
+
+    /* ── Confetti ── */
+    .confetti-container {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 99;
+      overflow: hidden;
+    }
+    .confetti-piece {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      top: -10px;
+      opacity: 0;
+      animation: confettiFall 3s ease-in forwards;
+    }
+    @keyframes confettiFall {
+      0%   { opacity: 1; top: -10px; transform: rotate(0deg) scale(1); }
+      100% { opacity: 0; top: 110vh; transform: rotate(720deg) scale(0.5); }
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Join Screen ── -->
+  <div id="joinScreen" class="screen join-screen active">
+    <div class="join-title">CaritaHub TV Reversi</div>
+    <div class="join-subtitle">Enter your name to join</div>
+    <input id="nameInput" class="join-input" type="text" placeholder="Your Name" maxlength="30" autocomplete="off" />
+    <button id="joinBtn" class="join-btn">Join Game</button>
+    <div id="joinError" class="join-error"></div>
+  </div>
+
+  <!-- ── Waiting Screen ── -->
+  <div id="waitingScreen" class="screen waiting-screen">
+    <div class="waiting-title">Waiting for game to start</div>
+    <div class="waiting-dots">···</div>
+    <div id="waitingName" class="waiting-name"></div>
+    <div class="waiting-players">
+      <div class="waiting-players-title">Players in game:</div>
+      <div id="waitingPlayerList"></div>
+    </div>
+  </div>
+
+  <!-- ── Playing Screen ── -->
+  <div id="playingScreen" class="screen playing-screen">
+    <!-- Score bar -->
+    <div class="score-bar">
+      <div id="opponentScorePanel" class="score-player">
+        <div class="score-disc" id="opponentDiscIcon"></div>
+        <div class="score-name" id="opponentNameEl">Opponent</div>
+        <div class="score-count" id="opponentCountEl">2</div>
+      </div>
+      <div id="myScorePanel" class="score-player">
+        <div class="score-count" id="myCountEl">2</div>
+        <div class="score-name" id="myNameEl">You</div>
+        <div class="score-disc" id="myDiscIcon"></div>
+      </div>
+    </div>
+
+    <!-- Status bar -->
+    <div id="statusBar" class="status-bar">Loading…</div>
+
+    <!-- Board -->
+    <div class="board-wrap">
+      <canvas id="boardCanvas"></canvas>
+      <div id="myTurnOverlay" class="my-turn-overlay"></div>
+    </div>
+  </div>
+
+  <!-- ── Game Over Screen ── -->
+  <div id="gameoverScreen" class="screen gameover-screen">
+    <div class="gameover-emoji" id="gameoverEmoji">🏆</div>
+    <div id="gameoverTitle" class="gameover-title">Game Over</div>
+    <div id="gameoverPersonal" class="gameover-personal"></div>
+    <div id="gameoverMsg" class="gameover-msg"></div>
+  </div>
+
+  <!-- ── Confetti Container ── -->
+  <div id="confettiContainer" class="confetti-container hidden"></div>
+
+  <!-- ── Reconnect Overlay ── -->
+  <div id="reconnectOverlay" class="reconnect-overlay hidden">
+    Connection lost. Reconnecting…
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/tv-reversi-play.js"></script>
+</body>
+</html>
