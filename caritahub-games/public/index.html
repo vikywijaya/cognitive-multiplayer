@@ -45,6 +45,18 @@
           </div>
         </a>
 
+        <a class="game-card" href="/lobby.html?game=reversi">
+          <div class="game-card-banner" style="background:linear-gradient(135deg,#1b4332,#2d6a4f);font-size:64px;display:flex;align-items:center;justify-content:center;">⚫</div>
+          <div class="game-card-body">
+            <div class="game-card-title">Reversi (Othello)</div>
+            <div class="game-card-subtitle">Flip strategy board game</div>
+            <div class="game-card-meta">
+              <span class="badge badge-ready">Ready to play</span>
+              <span class="badge">2 players</span>
+            </div>
+          </div>
+        </a>
+
         <a class="game-card" href="/lobby.html?game=chordaidi">
           <div class="game-card-banner game-card-banner-img">
             <img src="/img/banner-chordaidi.png" alt="Chor Dai Di cards" />
@@ -175,6 +187,7 @@
           <button class="lb-tab" data-game="xiangqi">象棋</button>
           <button class="lb-tab" data-game="chess">Chess</button>
           <button class="lb-tab" data-game="chordaidi">大老二</button>
+          <button class="lb-tab" data-game="reversi">Reversi</button>
         </div>
         <div id="lbBody" class="lb-body">
           <p class="lb-empty">No games played yet.</p>
@@ -205,7 +218,7 @@
     let allData = {};
     let activeGame = 'all';
 
-    const GAME_LABELS = { xiangqi: '象棋 Xiangqi', chess: 'Western Chess', chordaidi: '大老二 Chor Dai Di' };
+    const GAME_LABELS = { xiangqi: '象棋 Xiangqi', chess: 'Western Chess', chordaidi: '大老二 Chor Dai Di', reversi: 'Reversi' };
     const RANK_CLASSES = ['lb-rank-gold', 'lb-rank-silver', 'lb-rank-bronze'];
 
     function renderRows(entries) {

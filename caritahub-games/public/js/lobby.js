@@ -92,6 +92,13 @@ const GAMES = {
     gamePage: '/tv-boggle.html',
     maxPlayers: 1,
     hostColors: ['tv-host']
+  },
+  reversi: {
+    title: 'Reversi (Othello)',
+    subtitle: 'Flip strategy board game — 2 players',
+    gamePage: '/reversi-game.html',
+    maxPlayers: 2,
+    hostColors: ['black']
   }
 };
 

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CaritaHub Reversi — Game</title>
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    /* ── Reversi-specific styles ────────────────────────────────── */
+    #gameApp {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      background: #1a1a2e;
+      padding: 0 0 24px;
+    }
+
+    .player-panel {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .panel-black { background: #1f1f1f; }
+    .panel-white { background: #3a3a3a; }
+    .panel-active { outline: 3px solid #f0c040; }
+
+    .player-disc {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 8px;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+    .disc-black { background: #111; border: 2px solid #555; }
+    .disc-white { background: #eee; border: 2px solid #aaa; }
+
+    .disc-count {
+      font-size: 1.5rem;
+      font-weight: 700;
+      min-width: 36px;
+      text-align: center;
+    }
+
+    #statusBar {
+      width: 100%;
+      max-width: 480px;
+      background: #16213e;
+      color: #f0c040;
+      text-align: center;
+      padding: 8px 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      min-height: 38px;
+    }
+
+    #boardWrap {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      aspect-ratio: 1;
+      background: #2d6a4f;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+
+    #boardCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .controls {
+      display: flex;
+      gap: 12px;
+      padding: 12px 16px 0;
+      width: 100%;
+      max-width: 480px;
+      justify-content: center;
+    }
+
+    /* Game-over overlay */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .overlay.hidden { display: none; }
+
+    .overlay-box {
+      background: #16213e;
+      border-radius: 16px;
+      padding: 32px 24px;
+      max-width: 340px;
+      width: 90%;
+      text-align: center;
+      color: #fff;
+    }
+    .overlay-box h2 { margin: 0 0 12px; font-size: 1.6rem; }
+    .overlay-box p  { margin: 0 0 20px; font-size: 1.1rem; color: #ccc; }
+    .overlay-btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <div id="gameApp">
+    <!-- Opponent panel (top) -->
+    <div id="opponentPanel" class="player-panel panel-black">
+      <span style="display:flex;align-items:center;">
+        <span class="player-disc disc-black" id="opponentDisc"></span>
+        <span id="opponentName">Opponent</span>
+      </span>
+      <span class="disc-count" id="opponentCount">2</span>
+    </div>
+
+    <!-- Status bar -->
+    <div id="statusBar">Loading game…</div>
+
+    <!-- Board -->
+    <div id="boardWrap">
+      <canvas id="boardCanvas"></canvas>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+      <button id="resignBtn" class="btn btn-danger">Resign</button>
+    </div>
+
+    <!-- My panel (bottom) -->
+    <div id="myPanel" class="player-panel panel-white">
+      <span style="display:flex;align-items:center;">
+        <span class="player-disc disc-white" id="myDisc"></span>
+        <span id="myName">You</span>
+      </span>
+      <span class="disc-count" id="myCount">2</span>
+    </div>
+  </div>
+
+  <!-- Game-over overlay -->
+  <div id="gameOverOverlay" class="overlay hidden">
+    <div class="overlay-box">
+      <h2 id="gameOverTitle">Game Over</h2>
+      <p id="gameOverMsg"></p>
+      <div class="overlay-btns">
+        <button id="playAgainBtn" class="btn btn-primary">Play Again</button>
+        <a href="/" class="btn btn-secondary">Home</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/reversi-game.js"></script>
+</body>
+</html>
