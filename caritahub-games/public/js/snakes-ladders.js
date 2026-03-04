@@ -316,12 +316,7 @@ function drawGrid() {
       const boardRow = 9 - r;
       const sq = boardRow % 2 === 0 ? boardRow * 10 + c + 1 : boardRow * 10 + (10 - c);
 
-      let fill;
-      if      (LADDERS[sq] !== undefined) fill = '#b2f2cc';
-      else if (LADDER_TOPS.has(sq))       fill = '#80e8a8';
-      else if (SNAKES[sq]  !== undefined) fill = '#ffc8c4';
-      else if (SNAKE_TAILS.has(sq))       fill = '#ffaaa6';
-      else fill = (r + c) % 2 === 0 ? '#fffdf0' : '#f5e8be';
+      const fill = (r + c) % 2 === 0 ? '#fffdf0' : '#f5e8be';
 
       ctx.fillStyle = fill;
       ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
