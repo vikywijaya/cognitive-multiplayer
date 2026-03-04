@@ -532,9 +532,28 @@ function renderPlayers(state) {
   });
 }
 
-// ── Dice animation ────────────────────────────────────────────────────────────
-const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+// ── Dice SVG rendering ───────────────────────────────────────────────────────
+// pip [col, row]: col/row ∈ {0=left/top, 1=center, 2=right/bottom}
+const PIP_COORDS = {
+  1: [[1,1]],
+  2: [[0,0],[2,2]],
+  3: [[0,0],[1,1],[2,2]],
+  4: [[0,0],[2,0],[0,2],[2,2]],
+  5: [[0,0],[2,0],[1,1],[0,2],[2,2]],
+  6: [[0,0],[2,0],[0,1],[2,1],[0,2],[2,2]]
+};
+const PIP_X = [22, 50, 78]; // x centres for cols 0,1,2
+const PIP_Y = [22, 50, 78]; // y centres for rows 0,1,2
 
+function diceSVG(n) {
+  const pips = PIP_COORDS[n] || PIP_COORDS[1];
+  const dots = pips.map(([c, r]) =>
+    `<circle cx="${PIP_X[c]}" cy="${PIP_Y[r]}" r="9" fill="#1a1a2e"/>`
+  ).join('');
+  return `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">${dots}</svg>`;
+}
+
+// ── Dice animation ────────────────────────────────────────────────────────────
 function startDiceAnim() {
   diceDisplay.classList.remove('landing');
   diceDisplay.classList.add('rolling');
@@ -542,7 +561,7 @@ function startDiceAnim() {
   let delay = 160;
   function spin() {
     if (!diceAnim) return;
-    diceDisplay.textContent = DICE_FACES[Math.floor(Math.random() * 6)];
+    diceDisplay.innerHTML = diceSVG(Math.ceil(Math.random() * 6));
     delay = Math.max(45, delay * 0.88);
     diceAnim = setTimeout(spin, delay);
   }
@@ -558,7 +577,7 @@ function showDiceFace(n) {
   if (n < 1 || n > 6) return;
   diceDisplay.classList.remove('rolling', 'landing');
   void diceDisplay.offsetWidth; // force reflow to restart animation
-  diceDisplay.textContent = DICE_FACES[n - 1];
+  diceDisplay.innerHTML = diceSVG(n);
   diceDisplay.classList.add('landing');
   // Flash the controls strip
   const ctrl = document.getElementById('controls');
@@ -609,3 +628,4 @@ function escHtml(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt
 // ── Init ──────────────────────────────────────────────────────────────────────
 new ResizeObserver(resizeCanvas).observe(canvas.parentElement);
 resizeCanvas();
+diceDisplay.innerHTML = diceSVG(1); // show a die face on load
