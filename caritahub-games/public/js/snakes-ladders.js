@@ -390,62 +390,234 @@ function drawStartArea(positions) {
   });
 }
 
+// ── Cubic bezier helper ───────────────────────────────────────────────────────
+function bezierPoint(p0, p1, p2, p3, t) {
+  const mt = 1 - t;
+  return mt*mt*mt*p0 + 3*mt*mt*t*p1 + 3*mt*t*t*p2 + t*t*t*p3;
+}
+
 // ── Snakes & Ladders graphics ─────────────────────────────────────────────────
 function drawSnakesAndLadders() {
-  ctx.lineCap = 'round';
+  ctx.lineCap  = 'round';
+  ctx.lineJoin = 'round';
 
-  // Ladders
+  // ── LADDERS ────────────────────────────────────────────────────────────────
   for (const [fromStr, to] of Object.entries(LADDERS)) {
     const p1 = squareToPos(+fromStr), p2 = squareToPos(to);
     if (!p1 || !p2) continue;
     const dx = p2.x - p1.x, dy = p2.y - p1.y;
-    const len = Math.sqrt(dx * dx + dy * dy);
+    const len = Math.sqrt(dx*dx + dy*dy);
     if (!len) continue;
-    const nx = (-dy / len) * cellSize * 0.12, ny = (dx / len) * cellSize * 0.12;
 
-    ctx.strokeStyle = '#1e8449';
-    ctx.lineWidth   = Math.max(2, cellSize * 0.07);
-    ctx.beginPath(); ctx.moveTo(p1.x + nx, p1.y + ny); ctx.lineTo(p2.x + nx, p2.y + ny); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(p1.x - nx, p1.y - ny); ctx.lineTo(p2.x - nx, p2.y - ny); ctx.stroke();
+    const ux = dx/len, uy = dy/len;   // unit along ladder
+    const nx = -uy, ny = ux;          // unit perpendicular
+    const railOffset = cellSize * 0.11;
+    const railW = Math.max(3, cellSize * 0.09);
+    const rungW = Math.max(2, cellSize * 0.065);
 
-    const rungs = Math.max(2, Math.floor(len / (cellSize * 0.9)));
-    ctx.lineWidth = Math.max(1.5, cellSize * 0.05);
-    for (let i = 1; i <= rungs; i++) {
-      const t = i / (rungs + 1);
+    // Draw one wood-grain rail
+    const drawRail = (ax, ay, bx, by) => {
+      const midX = (ax+bx)/2, midY = (ay+by)/2;
+      const g = ctx.createLinearGradient(
+        midX - nx*railW*0.7, midY - ny*railW*0.7,
+        midX + nx*railW*0.7, midY + ny*railW*0.7
+      );
+      g.addColorStop(0,    '#5D2E0C');
+      g.addColorStop(0.30, '#A0522D');
+      g.addColorStop(0.55, '#D2691E');
+      g.addColorStop(0.75, '#F4A460');
+      g.addColorStop(1,    '#8B4513');
+      ctx.save();
+      ctx.shadowColor   = 'rgba(0,0,0,0.35)';
+      ctx.shadowBlur    = 5;
+      ctx.shadowOffsetX = 1.5;
+      ctx.shadowOffsetY = 2;
+      ctx.strokeStyle = g;
+      ctx.lineWidth   = railW;
       ctx.beginPath();
-      ctx.moveTo(p1.x + dx * t + nx, p1.y + dy * t + ny);
-      ctx.lineTo(p1.x + dx * t - nx, p1.y + dy * t - ny);
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
       ctx.stroke();
+      ctx.restore();
+    };
+
+    drawRail(p1.x+nx*railOffset, p1.y+ny*railOffset, p2.x+nx*railOffset, p2.y+ny*railOffset);
+    drawRail(p1.x-nx*railOffset, p1.y-ny*railOffset, p2.x-nx*railOffset, p2.y-ny*railOffset);
+
+    // Rungs with alternating shades and a highlight stripe
+    const rungs = Math.max(2, Math.floor(len / (cellSize * 0.85)));
+    for (let i = 0; i <= rungs; i++) {
+      const t  = i / rungs;
+      const cx = p1.x + dx*t, cy = p1.y + dy*t;
+      const r1x = cx + nx*(railOffset + railW*0.3), r1y = cy + ny*(railOffset + railW*0.3);
+      const r2x = cx - nx*(railOffset + railW*0.3), r2y = cy - ny*(railOffset + railW*0.3);
+
+      ctx.save();
+      ctx.shadowColor   = 'rgba(0,0,0,0.28)';
+      ctx.shadowBlur    = 3;
+      ctx.shadowOffsetY = 1.5;
+      ctx.strokeStyle = i%2===0 ? '#CD853F' : '#DEB887';
+      ctx.lineWidth   = rungW;
+      ctx.beginPath(); ctx.moveTo(r1x, r1y); ctx.lineTo(r2x, r2y); ctx.stroke();
+      // Highlight
+      ctx.shadowBlur  = 0;
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+      ctx.lineWidth   = rungW * 0.4;
+      ctx.beginPath();
+      ctx.moveTo(r1x - ux, r1y - uy);
+      ctx.lineTo(r2x - ux, r2y - uy);
+      ctx.stroke();
+      ctx.restore();
     }
   }
 
-  // Snakes
+  // ── SNAKES ────────────────────────────────────────────────────────────────
+  const SNAKE_PALETTES = [
+    { body:'#27ae60', dark:'#1a6637', light:'#58d68d', pat:'#0e4620' },
+    { body:'#8e44ad', dark:'#5b2c6f', light:'#bb8fce', pat:'#4a235a' },
+    { body:'#d35400', dark:'#873600', light:'#f0b27a', pat:'#6e2c00' },
+    { body:'#cb4335', dark:'#7b241c', light:'#f1948a', pat:'#641e16' },
+    { body:'#117a65', dark:'#0e6655', light:'#48c9b0', pat:'#0b5345' },
+    { body:'#2471a3', dark:'#154360', light:'#5dade2', pat:'#0e3460' },
+    { body:'#d4ac0d', dark:'#9a7d0a', light:'#f7dc6f', pat:'#7d6608' },
+    { body:'#2c3e50', dark:'#1c2833', light:'#566573', pat:'#17202a' },
+  ];
+
+  let si = 0;
   for (const [fromStr, to] of Object.entries(SNAKES)) {
     const head = squareToPos(+fromStr), tail = squareToPos(to);
     if (!head || !tail) continue;
-    const dx = tail.x - head.x, dy = tail.y - head.y;
-    const w  = cellSize * 1.1;
 
-    ctx.strokeStyle = '#c0392b';
-    ctx.lineWidth   = Math.max(3, cellSize * 0.11);
+    const pal = SNAKE_PALETTES[si++ % SNAKE_PALETTES.length];
+    const dx = tail.x - head.x, dy = tail.y - head.y;
+    const len = Math.sqrt(dx*dx + dy*dy);
+    const ux = dx/len, uy = dy/len;
+    const bodyW = Math.max(5, cellSize * 0.14);
+
+    // S-curve control points
+    const midX = head.x + dx*0.5, midY = head.y + dy*0.5;
+    const perp  = cellSize * 0.9;
+    const cp1x = midX - uy*perp,        cp1y = midY + ux*perp;
+    const cp2x = midX + uy*perp*0.6,    cp2y = midY - ux*perp*0.6;
+
+    // 1. Drop shadow / dark outline
+    ctx.save();
+    ctx.shadowColor   = 'rgba(0,0,0,0.45)';
+    ctx.shadowBlur    = 8;
+    ctx.shadowOffsetY = 3;
+    ctx.strokeStyle = pal.dark;
+    ctx.lineWidth   = bodyW + Math.max(2.5, cellSize*0.05);
     ctx.beginPath();
     ctx.moveTo(head.x, head.y);
-    ctx.bezierCurveTo(head.x + w, head.y + w * 0.6, tail.x - w * 0.5, tail.y - w * 0.6, tail.x, tail.y);
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, tail.x, tail.y);
+    ctx.stroke();
+    ctx.restore();
+
+    // 2. Main body with gradient
+    const bodyGrad = ctx.createLinearGradient(head.x, head.y, tail.x, tail.y);
+    bodyGrad.addColorStop(0,    pal.dark);
+    bodyGrad.addColorStop(0.4,  pal.body);
+    bodyGrad.addColorStop(1,    pal.light);
+    ctx.strokeStyle = bodyGrad;
+    ctx.lineWidth   = bodyW;
+    ctx.beginPath();
+    ctx.moveTo(head.x, head.y);
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, tail.x, tail.y);
     ctx.stroke();
 
-    // Snake head
-    ctx.fillStyle = '#e74c3c';
-    ctx.beginPath(); ctx.arc(head.x, head.y, Math.max(4, cellSize * 0.16), 0, Math.PI * 2); ctx.fill();
+    // 3. Sheen stripe
+    const sheenGrad = ctx.createLinearGradient(head.x, head.y, tail.x, tail.y);
+    sheenGrad.addColorStop(0,   'rgba(255,255,255,0.28)');
+    sheenGrad.addColorStop(0.5, 'rgba(255,255,255,0.07)');
+    sheenGrad.addColorStop(1,   'rgba(255,255,255,0.0)');
+    ctx.strokeStyle = sheenGrad;
+    ctx.lineWidth   = bodyW * 0.38;
+    ctx.beginPath();
+    ctx.moveTo(head.x, head.y);
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, tail.x, tail.y);
+    ctx.stroke();
 
-    // Eyes
-    const eyeR  = Math.max(1.5, cellSize * 0.04);
-    const angle = Math.atan2(dy, dx) + Math.PI;
-    ctx.fillStyle = '#fff';
-    [0.5, -0.5].forEach(off => {
+    // 4. Scale dots along body
+    const numScales = Math.max(4, Math.floor(len / (cellSize * 0.5)));
+    for (let i = 1; i < numScales; i++) {
+      const t  = i / numScales;
+      const bx = bezierPoint(head.x, cp1x, cp2x, tail.x, t);
+      const by = bezierPoint(head.y, cp1y, cp2y, tail.y, t);
+      ctx.fillStyle = i%2===0 ? pal.pat : 'rgba(255,255,255,0.15)';
       ctx.beginPath();
-      ctx.arc(head.x + Math.cos(angle + off) * eyeR * 2.5, head.y + Math.sin(angle + off) * eyeR * 2.5, eyeR, 0, Math.PI * 2);
+      ctx.arc(bx, by, Math.max(1.5, cellSize*0.025), 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // 5. Head — elongated oval facing away from body
+    const headAngle = Math.atan2(cp1y - head.y, cp1x - head.x) + Math.PI;
+    const headR     = Math.max(6, cellSize * 0.185);
+
+    ctx.save();
+    ctx.translate(head.x, head.y);
+    ctx.rotate(headAngle);
+
+    ctx.shadowColor   = 'rgba(0,0,0,0.45)';
+    ctx.shadowBlur    = 6;
+    ctx.shadowOffsetY = 2;
+
+    const hg = ctx.createRadialGradient(-headR*0.25, -headR*0.25, headR*0.1, 0, 0, headR*1.4);
+    hg.addColorStop(0,    pal.light);
+    hg.addColorStop(0.55, pal.body);
+    hg.addColorStop(1,    pal.dark);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, headR*1.35, headR*0.95, 0, 0, Math.PI*2);
+    ctx.fillStyle = hg;
+    ctx.fill();
+    ctx.shadowBlur  = 0;
+    ctx.strokeStyle = pal.dark;
+    ctx.lineWidth   = Math.max(1, cellSize*0.025);
+    ctx.stroke();
+
+    // Nostrils
+    const nostrilR = Math.max(1, cellSize*0.018);
+    ctx.fillStyle  = pal.dark;
+    [0.45, -0.45].forEach(s => {
+      ctx.beginPath();
+      ctx.arc(headR*1.1, s*headR*0.55, nostrilR, 0, Math.PI*2);
       ctx.fill();
     });
+
+    // Eyes with vertical-slit pupils
+    const eyeR   = Math.max(2.2, cellSize*0.05);
+    const eyeFwd = headR*0.62, eyeSide = headR*0.65;
+    [1, -1].forEach(side => {
+      ctx.fillStyle = '#fffde7';
+      ctx.beginPath();
+      ctx.arc(eyeFwd, side*eyeSide, eyeR, 0, Math.PI*2);
+      ctx.fill();
+      // Vertical slit pupil
+      ctx.save();
+      ctx.translate(eyeFwd, side*eyeSide);
+      ctx.scale(0.42, 1);
+      ctx.fillStyle = '#0d0d0d';
+      ctx.beginPath();
+      ctx.arc(0, 0, eyeR*0.78, 0, Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+      // Eye shine
+      ctx.fillStyle = 'rgba(255,255,255,0.72)';
+      ctx.beginPath();
+      ctx.arc(eyeFwd - eyeR*0.1, side*eyeSide - eyeR*0.3, eyeR*0.28, 0, Math.PI*2);
+      ctx.fill();
+    });
+
+    // Forked tongue
+    const ts = headR*1.35, tl = headR*0.95, fl = headR*0.52, fa = 0.42;
+    ctx.strokeStyle = '#e74c3c';
+    ctx.lineWidth   = Math.max(1, cellSize*0.022);
+    ctx.beginPath(); ctx.moveTo(ts, 0); ctx.lineTo(ts+tl, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ts+tl, 0);
+    ctx.lineTo(ts+tl + fl*Math.cos(fa), -fl*Math.sin(fa)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ts+tl, 0);
+    ctx.lineTo(ts+tl + fl*Math.cos(fa),  fl*Math.sin(fa)); ctx.stroke();
+
+    ctx.restore();
   }
 }
 
