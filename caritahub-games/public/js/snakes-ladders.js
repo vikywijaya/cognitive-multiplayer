@@ -69,17 +69,34 @@ function beep(freq, type, dur, vol, offset = 0) {
 function playDiceRoll() {
   try {
     const ac     = getAudio();
-    const bufLen = Math.floor(ac.sampleRate * 0.18);
-    const buf    = ac.createBuffer(1, bufLen, ac.sampleRate);
-    const data   = buf.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufLen) * 0.6;
-    const src    = ac.createBufferSource();
-    src.buffer   = buf;
-    const filter = ac.createBiquadFilter();
-    filter.type  = 'highpass'; filter.frequency.value = 300;
-    const g = ac.createGain(); g.gain.value = 1;
-    src.connect(filter); filter.connect(g); g.connect(ac.destination);
-    src.start();
+    const pitches = [520, 440, 600, 400, 580, 460, 640, 480];
+    let   t      = ac.currentTime + 0.02;
+    let   gap    = 0.13;
+
+    for (let i = 0; i < 13; i++) {
+      // Warm wooden "tick" — triangle wave
+      const osc1 = ac.createOscillator(), env1 = ac.createGain();
+      osc1.type = 'triangle';
+      osc1.frequency.value = pitches[i % pitches.length] * (0.92 + Math.random() * 0.16);
+      env1.gain.setValueAtTime(0.0001, t);
+      env1.gain.linearRampToValueAtTime(0.22, t + 0.007);
+      env1.gain.exponentialRampToValueAtTime(0.0001, t + 0.065);
+      osc1.connect(env1); env1.connect(ac.destination);
+      osc1.start(t); osc1.stop(t + 0.07);
+
+      // Low "thud" on each hit — sine wave for body resonance
+      const osc2 = ac.createOscillator(), env2 = ac.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.value = 140 + Math.random() * 70;
+      env2.gain.setValueAtTime(0.0001, t);
+      env2.gain.linearRampToValueAtTime(0.14, t + 0.005);
+      env2.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+      osc2.connect(env2); env2.connect(ac.destination);
+      osc2.start(t); osc2.stop(t + 0.05);
+
+      t   += gap;
+      gap  = Math.max(0.042, gap * 0.86); // accelerate
+    }
   } catch (e) {}
 }
 
