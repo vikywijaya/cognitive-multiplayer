@@ -35,9 +35,9 @@ const htpReadyBtn      = document.getElementById('htpReadyBtn');
 
 // ── Station positions for avatar placement (% of kitchen scene) ──────────
 const STATION_POS = {
-  chop:  { x: 18, y: 22 },
-  stove: { x: 72, y: 22 },
-  plate: { x: 45, y: 78 },
+  chop:  { x: 18, y: 28 },
+  stove: { x: 72, y: 28 },
+  plate: { x: 45, y: 72 },
   idle:  { x: 45, y: 50 },
 };
 function avatarPos(station, index, totalAtStation) {

@@ -257,12 +257,9 @@ html, body {
 .kitchen-scene {
   flex: 1; position: relative;
   background: linear-gradient(180deg, #3d2a1f 0%, #4a3525 50%, #3d2a1f 100%);
-  border-left: 3px solid #2c1810;
-  border-right: 3px solid #2c1810;
+  border-left: 3px solid #6b4a36;
+  border-right: 3px solid #6b4a36;
   overflow: hidden;
-  max-height: 62vh;
-  align-self: center;
-  border-radius: 4px;
 }
 
 /* Kitchen floor tiles */
@@ -270,15 +267,14 @@ html, body {
   position: absolute; inset: 0;
   background:
     repeating-conic-gradient(#5a4535 0% 25%, #4d3a2a 0% 50%) 0 0 / 50px 50px;
-  opacity: 0.4;
+  opacity: 0.5;
 }
 
-/* Stations — positioned in kitchen */
+/* Stations — positioned closer together for compact kitchen feel */
 .station {
   position: absolute;
   display: flex; flex-direction: column; align-items: center;
   gap: 4px; z-index: 4;
-  transition: transform 0.3s;
 }
 .station-body {
   width: 100px; height: 72px;
@@ -294,9 +290,9 @@ html, body {
   text-shadow: 0 1px 3px rgba(0,0,0,0.5);
 }
 
-.station-chop  { left: 10%; top: 10%; }
-.station-stove { right: 10%; top: 10%; }
-.station-plate { left: 50%; bottom: 8%; transform: translateX(-50%); }
+.station-chop  { left: 10%; top: 18%; }
+.station-stove { right: 10%; top: 18%; }
+.station-plate { left: 50%; top: 65%; transform: translateX(-50%); }
 
 .station-chop .station-body  { background: linear-gradient(135deg, #6b4226, #8b5e3c); border: 3px solid #a0764e; }
 .station-stove .station-body { background: linear-gradient(135deg, #444, #666); border: 3px solid #888; }
