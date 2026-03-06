@@ -4,9 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="format-detection" content="telephone=no" />
-  <title>CaritaHub Cooking</title>
+  <title>CaritaHub Kitchen Rush</title>
   <style>
-    /* ── Reset & base ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     html, body {
@@ -74,148 +73,244 @@
     .wait-title { font-size: 26px; font-weight: 800; color: #ff9f43; text-align: center; }
     .wait-sub   { font-size: 18px; color: #aaa; text-align: center; padding: 0 24px; }
 
-    /* ── Controller screen ── */
-    #controllerScreen {
+    /* ── Task screen (main gameplay) ── */
+    #taskScreen {
       padding: 0;
       background: #1a0a2e;
     }
 
-    /* ── Header bar ── */
-    .ctrl-header {
+    .task-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 10px 16px;
       background: rgba(0,0,0,0.4);
       border-bottom: 1px solid rgba(255,255,255,0.1);
-      gap: 10px;
       flex-shrink: 0;
     }
-    .ctrl-name   { font-size: 16px; font-weight: 700; }
-    .ctrl-holding {
-      flex: 1;
-      text-align: center;
-      font-size: 15px;
-      font-weight: 600;
-      color: #ffd700;
-    }
-    .ctrl-score  { font-size: 16px; font-weight: 700; color: #ff9f43; }
-    .ctrl-timer  { font-size: 16px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
-    .ctrl-timer.low { color: #ff6b6b; animation: pulse 0.5s infinite alternate; }
+    .task-header-name { font-size: 16px; font-weight: 700; }
+    .task-header-score { font-size: 16px; font-weight: 700; color: #ff9f43; }
+    .task-header-timer { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .task-header-timer.low { color: #ff6b6b; animation: pulse 0.5s infinite alternate; }
     @keyframes pulse { from { opacity: 1; } to { opacity: 0.5; } }
 
-    /* ── Main controller body ── */
-    .ctrl-body {
+    /* ── Task body (mini-game area) ── */
+    .task-body {
       flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px 20px;
-      gap: 12px;
+      justify-content: center;
+      padding: 20px 16px;
+      gap: 16px;
       overflow: hidden;
     }
 
-    /* ── Action buttons ── */
-    .actions-area {
+    .task-info {
+      text-align: center;
+    }
+    .task-emoji-big { font-size: 64px; }
+    .task-label-big { font-size: 24px; font-weight: 800; color: #ffd700; margin-top: 8px; }
+    .task-instruction { font-size: 16px; color: #aaa; margin-top: 4px; }
+
+    /* ── Idle state ── */
+    .idle-state {
+      text-align: center;
+    }
+    .idle-emoji { font-size: 80px; opacity: 0.4; }
+    .idle-text { font-size: 22px; color: #666; font-weight: 700; margin-top: 12px; }
+    .idle-sub { font-size: 16px; color: #444; margin-top: 6px; }
+
+    /* ── Chopping mini-game ── */
+    .chop-area {
       width: 100%;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      flex: 1;
-      justify-content: center;
-      max-height: 40vh;
-      overflow-y: auto;
+      align-items: center;
+      gap: 16px;
     }
-
-    .action-btn {
-      width: 100%;
-      padding: 16px 18px;
-      font-size: 18px;
-      font-weight: 700;
-      border: none;
-      border-radius: 14px;
-      cursor: pointer;
+    .chop-progress {
+      width: 80%;
+      max-width: 300px;
+      height: 24px;
       background: rgba(255,255,255,0.1);
-      color: #fff;
-      border: 2px solid rgba(255,255,255,0.2);
-      text-align: center;
-      transition: transform 0.08s, background 0.15s;
-      -webkit-tap-highlight-color: transparent;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
     }
-    .action-btn:active:not(:disabled) { transform: scale(0.95); background: rgba(255,255,255,0.2); }
-    .action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-    .action-btn.primary {
-      background: linear-gradient(90deg, #ff9f43, #ee5a24);
-      border-color: transparent;
-      font-size: 20px;
+    .chop-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #e74c3c, #ff6b6b);
+      border-radius: 12px;
+      transition: width 0.1s;
     }
-    .action-btn.primary:active { transform: scale(0.95); }
-
-    .no-actions {
-      color: #666;
-      font-size: 16px;
-      text-align: center;
-      padding: 20px 0;
-    }
-
-    /* ── D-Pad ── */
-    .dpad-wrap {
-      flex-shrink: 0;
-      margin-bottom: 8px;
-    }
-
-    .dpad {
-      display: grid;
-      grid-template-areas:
-        ". up ."
-        "left center right"
-        ". down .";
-      grid-template-columns: 72px 72px 72px;
-      grid-template-rows: 72px 72px 72px;
-      gap: 4px;
-    }
-
-    .dpad-btn {
+    .chop-progress-text {
+      position: absolute;
+      inset: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: rgba(255,255,255,0.1);
-      border: 2px solid rgba(255,255,255,0.2);
-      border-radius: 12px;
-      font-size: 28px;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
-      transition: background 0.08s, transform 0.08s;
+      font-size: 13px;
+      font-weight: 800;
     }
-    .dpad-btn:active { background: rgba(255,255,255,0.25); transform: scale(0.92); }
-    .dpad-btn[data-dir="up"]    { grid-area: up; }
-    .dpad-btn[data-dir="left"]  { grid-area: left; }
-    .dpad-btn[data-dir="down"]  { grid-area: down; }
-    .dpad-btn[data-dir="right"] { grid-area: right; }
-    .dpad-center { grid-area: center; }
+    .chop-btn {
+      width: 200px; height: 200px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, #e74c3c, #c0392b);
+      color: #fff;
+      font-size: 36px;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 8px 30px rgba(231,76,60,0.5);
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.08s;
+      user-select: none;
+    }
+    .chop-btn:active { transform: scale(0.9); }
 
-    /* ── Orders mini view ── */
-    .orders-mini {
+    /* ── Stirring mini-game ── */
+    .stir-area {
       width: 100%;
       display: flex;
-      gap: 8px;
-      overflow-x: auto;
-      flex-shrink: 0;
-      padding-bottom: 4px;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
     }
-    .order-chip {
-      flex-shrink: 0;
-      background: rgba(255,255,255,0.07);
-      border-radius: 10px;
-      padding: 6px 12px;
-      font-size: 14px;
-      font-weight: 600;
-      border-left: 3px solid #ff9f43;
-      white-space: nowrap;
+    .stir-progress {
+      width: 80%;
+      max-width: 300px;
+      height: 24px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
     }
-    .order-chip.urgent { border-color: #ff6b6b; color: #ff6b6b; }
+    .stir-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3498db, #2980b9);
+      border-radius: 12px;
+      transition: width 0.15s;
+    }
+    .stir-progress-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .stir-pad {
+      width: 220px; height: 220px;
+      border-radius: 50%;
+      background: radial-gradient(circle, #2980b9 0%, #1a5276 100%);
+      border: 4px solid rgba(52,152,219,0.5);
+      box-shadow: 0 8px 30px rgba(52,152,219,0.4);
+      position: relative;
+      touch-action: none;
+    }
+    .stir-pad-text {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 800;
+      color: rgba(255,255,255,0.5);
+      pointer-events: none;
+    }
+    .stir-indicator {
+      position: absolute;
+      width: 20px; height: 20px;
+      background: #fff;
+      border-radius: 50%;
+      top: 6px; left: 50%;
+      transform: translateX(-50%);
+      pointer-events: none;
+      box-shadow: 0 0 10px rgba(255,255,255,0.8);
+    }
+
+    /* ── Flipping QTE mini-game ── */
+    .flip-area {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+    .flip-bar-container {
+      width: 80%;
+      max-width: 300px;
+      height: 50px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+    .flip-green-zone {
+      position: absolute;
+      top: 0; bottom: 0;
+      left: 35%; width: 30%;
+      background: rgba(46,204,113,0.4);
+      border-left: 2px solid #2ecc71;
+      border-right: 2px solid #2ecc71;
+    }
+    .flip-marker {
+      position: absolute;
+      top: 4px; bottom: 4px;
+      width: 6px;
+      background: #fff;
+      border-radius: 3px;
+      left: 0%;
+      transition: none;
+      box-shadow: 0 0 8px rgba(255,255,255,0.8);
+    }
+    .flip-btn {
+      width: 180px; height: 80px;
+      border-radius: 16px;
+      border: none;
+      background: linear-gradient(135deg, #2ecc71, #27ae60);
+      color: #fff;
+      font-size: 24px;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(46,204,113,0.5);
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.08s;
+    }
+    .flip-btn:active { transform: scale(0.93); }
+    .flip-result {
+      font-size: 28px;
+      font-weight: 900;
+      min-height: 40px;
+    }
+    .flip-result.perfect { color: #2ecc71; }
+    .flip-result.miss { color: #ff6b6b; }
+
+    /* ── Task complete overlay ── */
+    .task-complete-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(46,204,113,0.85);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 200;
+      animation: taskCompleteAnim 1.2s ease-out forwards;
+    }
+    @keyframes taskCompleteAnim {
+      0%   { opacity: 0; transform: scale(0.8); }
+      20%  { opacity: 1; transform: scale(1.05); }
+      40%  { transform: scale(1); }
+      80%  { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    .task-complete-star { font-size: 80px; }
+    .task-complete-text { font-size: 32px; font-weight: 900; color: #fff; }
 
     /* ── Game over ── */
     #gameoverScreen {
@@ -242,102 +337,84 @@
 </head>
 <body>
 
-  <!-- ── Join ── -->
+  <!-- Join -->
   <div id="joinScreen" class="screen active">
-    <div class="join-title">🍳 TV Cooking</div>
+    <div class="join-title">🍳 Kitchen Rush!</div>
     <div class="join-sub">Enter the room code shown on the TV</div>
     <input id="roomInput" class="room-input" type="text" maxlength="8" placeholder="ROOM CODE" autocomplete="off" spellcheck="false" />
     <input id="nameInput" class="join-input" type="text" maxlength="20" placeholder="Your name" autocomplete="off" />
-    <button id="joinBtn" class="join-btn">Join Game</button>
+    <button id="joinBtn" class="join-btn">Join Kitchen!</button>
     <div id="joinError" class="join-error"></div>
   </div>
 
-  <!-- ── Waiting ── -->
+  <!-- Waiting -->
   <div id="waitScreen" class="screen">
     <div class="wait-emoji">🍳</div>
     <div class="wait-title">Waiting for game to start…</div>
     <div class="wait-sub" id="waitMsg">Waiting for the TV host to start the game.</div>
   </div>
 
-  <!-- ── Controller ── -->
-  <div id="controllerScreen" class="screen">
-    <div class="ctrl-header">
-      <span class="ctrl-name" id="ctrlName"></span>
-      <span class="ctrl-holding" id="ctrlHolding"></span>
-      <span class="ctrl-timer" id="ctrlTimer">3:00</span>
+  <!-- Task Screen (main gameplay) -->
+  <div id="taskScreen" class="screen">
+    <div class="task-header">
+      <span class="task-header-name" id="taskHeaderName"></span>
+      <span class="task-header-score" id="taskHeaderScore">0</span>
+      <span class="task-header-timer" id="taskHeaderTimer">3:00</span>
     </div>
-
-    <div class="ctrl-body">
-      <!-- Orders mini -->
-      <div class="orders-mini" id="ordersMini"></div>
-
-      <!-- Action buttons -->
-      <div class="actions-area" id="actionsArea">
-        <div class="no-actions">Move to a station to see available actions</div>
-      </div>
-
-      <!-- D-pad -->
-      <div class="dpad-wrap">
-        <div class="dpad">
-          <button class="dpad-btn" data-dir="up">▲</button>
-          <button class="dpad-btn" data-dir="left">◀</button>
-          <div class="dpad-center"></div>
-          <button class="dpad-btn" data-dir="right">▶</button>
-          <button class="dpad-btn" data-dir="down">▼</button>
-        </div>
-      </div>
+    <div class="task-body" id="taskBody">
+      <!-- Filled dynamically based on current task -->
     </div>
   </div>
 
-  <!-- ── Game Over ── -->
+  <!-- Game Over -->
   <div id="gameoverScreen" class="screen">
     <div class="go-emoji">🏆</div>
     <div class="go-title">Time's Up!</div>
     <div class="go-score">Score: <span id="goScore">0</span></div>
   </div>
 
-  <!-- ── Reconnect overlay ── -->
+  <!-- Reconnect overlay -->
   <div id="reconnectOverlay" class="reconnect hidden">Reconnecting…</div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
   'use strict';
-  /* ── CaritaHub TV Cooking — phone player client ───────────────────────── */
 
   const socket = io({ transports: ['websocket', 'polling'] });
 
-  // ── DOM ──────────────────────────────────────────────────────────────────
-  const joinScreen       = document.getElementById('joinScreen');
-  const waitScreen       = document.getElementById('waitScreen');
-  const controllerScreen = document.getElementById('controllerScreen');
-  const gameoverScreen   = document.getElementById('gameoverScreen');
-  const roomInput        = document.getElementById('roomInput');
-  const nameInput        = document.getElementById('nameInput');
-  const joinBtn          = document.getElementById('joinBtn');
-  const joinError        = document.getElementById('joinError');
-  const waitMsg          = document.getElementById('waitMsg');
-  const ctrlName         = document.getElementById('ctrlName');
-  const ctrlHolding      = document.getElementById('ctrlHolding');
-  const ctrlTimer        = document.getElementById('ctrlTimer');
-  const actionsArea      = document.getElementById('actionsArea');
-  const ordersMini       = document.getElementById('ordersMini');
-  const goScore          = document.getElementById('goScore');
+  // ── DOM ────────────────────────────────────────────────────────────────
+  const joinScreen      = document.getElementById('joinScreen');
+  const waitScreen      = document.getElementById('waitScreen');
+  const taskScreen      = document.getElementById('taskScreen');
+  const gameoverScreen  = document.getElementById('gameoverScreen');
+  const roomInput       = document.getElementById('roomInput');
+  const nameInput       = document.getElementById('nameInput');
+  const joinBtn         = document.getElementById('joinBtn');
+  const joinError       = document.getElementById('joinError');
+  const waitMsg         = document.getElementById('waitMsg');
+  const taskHeaderName  = document.getElementById('taskHeaderName');
+  const taskHeaderScore = document.getElementById('taskHeaderScore');
+  const taskHeaderTimer = document.getElementById('taskHeaderTimer');
+  const taskBody        = document.getElementById('taskBody');
+  const goScore         = document.getElementById('goScore');
   const reconnectOverlay = document.getElementById('reconnectOverlay');
 
-  // ── State ────────────────────────────────────────────────────────────────
-  let myName    = '';
-  let myColor   = '';
-  let myRoomId  = null;
+  // ── State ──────────────────────────────────────────────────────────────
+  let myName     = '';
+  let myColor    = '';
+  let myRoomId   = null;
   let gameActive = false;
+  let currentTaskId = null;
+  let flipAnimFrame = null;
 
-  // Pre-fill room code from URL ?room=
+  // Pre-fill room code from URL
   const params = new URLSearchParams(location.search);
   const preRoom = params.get('room') || '';
   if (preRoom) roomInput.value = preRoom.toUpperCase();
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────
   function showScreen(id) {
-    [joinScreen, waitScreen, controllerScreen, gameoverScreen].forEach(s => s.classList.remove('active'));
+    [joinScreen, waitScreen, taskScreen, gameoverScreen].forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
   }
 
@@ -353,7 +430,7 @@
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  // ── Join flow ─────────────────────────────────────────────────────────────
+  // ── Join flow ──────────────────────────────────────────────────────────
   function doJoin() {
     const room = roomInput.value.trim().toUpperCase();
     const name = nameInput.value.trim();
@@ -373,100 +450,263 @@
     roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
   });
 
-  // ── D-pad ─────────────────────────────────────────────────────────────────
-  // Use touchstart/touchend for faster response on mobile
-  let moveInterval = null;
+  // ── Render task-based UI ───────────────────────────────────────────────
 
-  function startMove(dir) {
-    if (!gameActive) return;
-    socket.emit('cooking_move', { direction: dir });
-    clearInterval(moveInterval);
-    moveInterval = setInterval(() => {
-      if (gameActive) socket.emit('cooking_move', { direction: dir });
-    }, 150);
-  }
-
-  function stopMove() {
-    clearInterval(moveInterval);
-    moveInterval = null;
-  }
-
-  document.querySelectorAll('.dpad-btn').forEach(btn => {
-    const dir = btn.dataset.dir;
-    btn.addEventListener('touchstart', e => { e.preventDefault(); startMove(dir); }, { passive: false });
-    btn.addEventListener('touchend',   e => { e.preventDefault(); stopMove(); },     { passive: false });
-    btn.addEventListener('touchcancel', stopMove);
-    // Fallback for non-touch
-    btn.addEventListener('mousedown', () => startMove(dir));
-    btn.addEventListener('mouseup',   stopMove);
-    btn.addEventListener('mouseleave', stopMove);
-  });
-
-  // Keyboard support
-  const keyDirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right' };
-  const keysHeld = new Set();
-  document.addEventListener('keydown', e => {
-    const dir = keyDirMap[e.key];
-    if (!dir || !gameActive || keysHeld.has(e.key)) return;
-    keysHeld.add(e.key);
-    startMove(dir);
-  });
-  document.addEventListener('keyup', e => {
-    if (keysHeld.has(e.key)) { keysHeld.delete(e.key); stopMove(); }
-  });
-
-  // ── Render player state ───────────────────────────────────────────────────
   function renderPlayerState(ps) {
-    ctrlName.textContent = ps.name || myName;
-    if (myColor) ctrlName.style.color = myColor;
+    taskHeaderName.textContent = ps.name || myName;
+    if (ps.color) taskHeaderName.style.color = ps.color;
+    taskHeaderScore.textContent = `${ps.score || 0} pts`;
 
-    if (ps.holding) {
-      ctrlHolding.textContent = `Holding: ${ps.holdingEmoji || ''} ${ps.holdingLabel || ps.holding}`;
-    } else {
-      ctrlHolding.textContent = '(empty hands)';
-    }
+    const task = ps.task;
 
-    // Action buttons
-    const actions = ps.actions || [];
-    if (!actions.length) {
-      actionsArea.innerHTML = '<div class="no-actions">Move to a station to see actions</div>';
-    } else {
-      actionsArea.innerHTML = actions.map((a, i) => `
-        <button
-          class="action-btn${a.primary ? ' primary' : ''}"
-          ${a.disabled ? 'disabled' : ''}
-          data-sx="${a.stationX}" data-sy="${a.stationY}"
-        >${escHtml(a.label)}</button>
-      `).join('');
-      actionsArea.querySelectorAll('.action-btn:not(:disabled)').forEach(btn => {
-        const sx = parseInt(btn.dataset.sx, 10);
-        const sy = parseInt(btn.dataset.sy, 10);
-        btn.addEventListener('click', () => {
-          socket.emit('cooking_action', { stationX: sx, stationY: sy });
-        });
-        btn.addEventListener('touchstart', e => {
-          e.preventDefault();
-          socket.emit('cooking_action', { stationX: sx, stationY: sy });
-        }, { passive: false });
-      });
-    }
-  }
-
-  function renderOrdersMini(orders) {
-    if (!orders || !orders.length) {
-      ordersMini.innerHTML = '';
+    // If task changed, re-render the mini-game
+    if (!task) {
+      if (currentTaskId !== null) {
+        currentTaskId = null;
+        cancelFlipAnim();
+        renderIdleState();
+      }
       return;
     }
-    ordersMini.innerHTML = orders.map(o => {
-      const frac = o.timeLeft / o.maxTime;
-      return `<div class="order-chip${frac < 0.3 ? ' urgent' : ''}">${o.emoji} ${escHtml(o.recipeName)} · ${Math.ceil(o.timeLeft/1000)}s</div>`;
-    }).join('');
+
+    if (task.id !== currentTaskId) {
+      currentTaskId = task.id;
+      cancelFlipAnim();
+      renderMiniGame(task);
+    } else {
+      // Update progress in-place
+      updateMiniGameProgress(task);
+    }
   }
 
-  // ── Socket events ─────────────────────────────────────────────────────────
+  function renderIdleState() {
+    taskBody.innerHTML = `
+      <div class="idle-state">
+        <div class="idle-emoji">👨‍🍳</div>
+        <div class="idle-text">Waiting for task…</div>
+        <div class="idle-sub">Watch the TV for your next assignment!</div>
+      </div>
+    `;
+  }
+
+  function renderMiniGame(task) {
+    if (task.type === 'chopping') {
+      renderChoppingGame(task);
+    } else if (task.type === 'stirring') {
+      renderStirringGame(task);
+    } else if (task.type === 'flipping') {
+      renderFlippingGame(task);
+    }
+  }
+
+  // ── CHOPPING MINI-GAME ─────────────────────────────────────────────────
+
+  function renderChoppingGame(task) {
+    const pct = Math.round((task.progress / task.targetTaps) * 100);
+    taskBody.innerHTML = `
+      <div class="task-info">
+        <div class="task-emoji-big">${task.emoji}</div>
+        <div class="task-label-big">${escHtml(task.label)}</div>
+        <div class="task-instruction">Tap rapidly to chop!</div>
+      </div>
+      <div class="chop-area">
+        <div class="chop-progress">
+          <div class="chop-progress-fill" id="chopFill" style="width:${pct}%"></div>
+          <div class="chop-progress-text">${task.progress} / ${task.targetTaps}</div>
+        </div>
+        <button class="chop-btn" id="chopBtn">🔪<br>CHOP!</button>
+      </div>
+    `;
+    const chopBtn = document.getElementById('chopBtn');
+    chopBtn.addEventListener('touchstart', e => { e.preventDefault(); socket.emit('cooking_tap'); }, { passive: false });
+    chopBtn.addEventListener('click', () => { socket.emit('cooking_tap'); });
+  }
+
+  function updateChoppingProgress(task) {
+    const fill = document.getElementById('chopFill');
+    if (!fill) return;
+    const pct = Math.round((task.progress / task.targetTaps) * 100);
+    fill.style.width = `${pct}%`;
+    const textEl = fill.parentElement.querySelector('.chop-progress-text');
+    if (textEl) textEl.textContent = `${task.progress} / ${task.targetTaps}`;
+  }
+
+  // ── STIRRING MINI-GAME ─────────────────────────────────────────────────
+
+  let stirAngle = 0;
+  let stirLastAngle = null;
+  let stirAccum = 0;
+
+  function renderStirringGame(task) {
+    stirAngle = 0;
+    stirLastAngle = null;
+    stirAccum = 0;
+    const pct = Math.round((task.progress / task.targetCircles) * 100);
+
+    taskBody.innerHTML = `
+      <div class="task-info">
+        <div class="task-emoji-big">${task.emoji}</div>
+        <div class="task-label-big">${escHtml(task.label)}</div>
+        <div class="task-instruction">Swipe in circles to stir!</div>
+      </div>
+      <div class="stir-area">
+        <div class="stir-progress">
+          <div class="stir-progress-fill" id="stirFill" style="width:${pct}%"></div>
+          <div class="stir-progress-text">${task.progress} / ${task.targetCircles}</div>
+        </div>
+        <div class="stir-pad" id="stirPad">
+          <div class="stir-pad-text">Stir here</div>
+          <div class="stir-indicator" id="stirIndicator"></div>
+        </div>
+      </div>
+    `;
+
+    const pad = document.getElementById('stirPad');
+    const indicator = document.getElementById('stirIndicator');
+    const rect = () => pad.getBoundingClientRect();
+
+    function handleMove(clientX, clientY) {
+      const r = rect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      const angle = Math.atan2(clientY - cy, clientX - cx);
+
+      // Move indicator around the circle
+      const radius = r.width / 2 - 16;
+      const ix = Math.cos(angle) * radius + r.width / 2;
+      const iy = Math.sin(angle) * radius + r.height / 2;
+      indicator.style.left = `${ix - 10}px`;
+      indicator.style.top = `${iy - 10}px`;
+
+      if (stirLastAngle !== null) {
+        let delta = angle - stirLastAngle;
+        // Normalize to [-PI, PI]
+        if (delta > Math.PI) delta -= 2 * Math.PI;
+        if (delta < -Math.PI) delta += 2 * Math.PI;
+        stirAccum += Math.abs(delta);
+
+        // One full circle = 2*PI
+        if (stirAccum >= Math.PI * 2) {
+          stirAccum -= Math.PI * 2;
+          socket.emit('cooking_stir', { circles: 1 });
+        }
+      }
+      stirLastAngle = angle;
+    }
+
+    pad.addEventListener('touchmove', e => {
+      e.preventDefault();
+      const t = e.touches[0];
+      handleMove(t.clientX, t.clientY);
+    }, { passive: false });
+
+    pad.addEventListener('mousemove', e => {
+      if (e.buttons) handleMove(e.clientX, e.clientY);
+    });
+
+    pad.addEventListener('touchend', () => { stirLastAngle = null; });
+    pad.addEventListener('mouseup', () => { stirLastAngle = null; });
+  }
+
+  function updateStirringProgress(task) {
+    const fill = document.getElementById('stirFill');
+    if (!fill) return;
+    const pct = Math.round((task.progress / task.targetCircles) * 100);
+    fill.style.width = `${pct}%`;
+    const textEl = fill.parentElement.querySelector('.stir-progress-text');
+    if (textEl) textEl.textContent = `${task.progress} / ${task.targetCircles}`;
+  }
+
+  // ── FLIPPING QTE MINI-GAME ─────────────────────────────────────────────
+
+  let flipPos = 0;
+  let flipDir = 1;
+  let flipSpeed = 0.02; // position units per frame (~60fps)
+
+  function renderFlippingGame(task) {
+    flipPos = 0;
+    flipDir = 1;
+
+    taskBody.innerHTML = `
+      <div class="task-info">
+        <div class="task-emoji-big">${task.emoji}</div>
+        <div class="task-label-big">${escHtml(task.label)}</div>
+        <div class="task-instruction">Tap when the bar is in the GREEN zone!</div>
+      </div>
+      <div class="flip-area">
+        <div class="flip-bar-container" id="flipBarContainer">
+          <div class="flip-green-zone"></div>
+          <div class="flip-marker" id="flipMarker"></div>
+        </div>
+        <button class="flip-btn" id="flipBtn">FLIP!</button>
+        <div class="flip-result" id="flipResult"></div>
+      </div>
+    `;
+
+    const flipBtn = document.getElementById('flipBtn');
+    flipBtn.addEventListener('touchstart', e => { e.preventDefault(); doFlip(); }, { passive: false });
+    flipBtn.addEventListener('click', doFlip);
+
+    startFlipAnim();
+  }
+
+  function startFlipAnim() {
+    cancelFlipAnim();
+    function animate() {
+      flipPos += flipDir * flipSpeed;
+      if (flipPos >= 1) { flipPos = 1; flipDir = -1; }
+      if (flipPos <= 0) { flipPos = 0; flipDir = 1; }
+
+      const marker = document.getElementById('flipMarker');
+      if (marker) {
+        marker.style.left = `${flipPos * 100}%`;
+      }
+      flipAnimFrame = requestAnimationFrame(animate);
+    }
+    flipAnimFrame = requestAnimationFrame(animate);
+  }
+
+  function cancelFlipAnim() {
+    if (flipAnimFrame) {
+      cancelAnimationFrame(flipAnimFrame);
+      flipAnimFrame = null;
+    }
+  }
+
+  function doFlip() {
+    socket.emit('cooking_flip', { timing: flipPos });
+  }
+
+  // ── Update progress without re-rendering ───────────────────────────────
+
+  function updateMiniGameProgress(task) {
+    if (task.type === 'chopping') {
+      updateChoppingProgress(task);
+    } else if (task.type === 'stirring') {
+      updateStirringProgress(task);
+    }
+    // Flipping doesn't have progress updates
+  }
+
+  // ── Task completion animation ──────────────────────────────────────────
+
+  function showTaskComplete() {
+    const overlay = document.createElement('div');
+    overlay.className = 'task-complete-overlay';
+    overlay.innerHTML = `
+      <div class="task-complete-star">&#11088;</div>
+      <div class="task-complete-text">Good Job!</div>
+    `;
+    document.body.appendChild(overlay);
+    // Vibrate if supported
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    setTimeout(() => overlay.remove(), 1300);
+  }
+
+  // ── Socket events ──────────────────────────────────────────────────────
+
   socket.on('connect', () => {
     reconnectOverlay.classList.add('hidden');
-    // Reconnect: re-join if we had a room
     if (myRoomId && myName) {
       socket.emit('join_game', { gameType: 'cooking', playerName: myName, roomId: myRoomId, reconnect: true });
     }
@@ -480,7 +720,6 @@
     joinBtn.disabled = false;
 
     if (gameActive || reconnected) {
-      // Will receive cooking_state / cooking_player_state
       if (!gameActive) showScreen('waitScreen');
     } else {
       showScreen('waitScreen');
@@ -495,40 +734,62 @@
 
   socket.on('cooking_started', (gs) => {
     gameActive = true;
-    showScreen('controllerScreen');
-    ctrlTimer.textContent = formatTime(gs.timeLeftMs || 0);
-    renderOrdersMini(gs.orders);
+    currentTaskId = null;
+    showScreen('taskScreen');
+    taskHeaderTimer.textContent = formatTime(gs.timeLeftMs || 0);
+    renderIdleState();
   });
 
   socket.on('cooking_state', (gs) => {
     if (!gameActive) return;
     const ms = gs.timeLeftMs || 0;
-    ctrlTimer.textContent = formatTime(ms);
-    ctrlTimer.classList.toggle('low', ms < 30_000);
-    renderOrdersMini(gs.orders);
+    taskHeaderTimer.textContent = formatTime(ms);
+    taskHeaderTimer.classList.toggle('low', ms < 30_000);
   });
 
   socket.on('cooking_player_state', (ps) => {
     if (!gameActive) return;
+
+    // Check if a task was just completed
+    const prevTaskId = currentTaskId;
     renderPlayerState(ps);
+
+    // If we had a task and now we don't (or it changed), show completion
+    if (prevTaskId !== null && (!ps.task || ps.task.id !== prevTaskId)) {
+      showTaskComplete();
+    }
+  });
+
+  socket.on('cooking_flip_result', ({ result }) => {
+    const el = document.getElementById('flipResult');
+    if (!el) return;
+    if (result === 'perfect' || result === 'task_completed') {
+      el.className = 'flip-result perfect';
+      el.textContent = 'Perfect!';
+    } else {
+      el.className = 'flip-result miss';
+      el.textContent = 'Miss! Try again!';
+    }
+    setTimeout(() => { if (el) el.textContent = ''; }, 1200);
   });
 
   socket.on('cooking_game_over', ({ score }) => {
     gameActive = false;
-    stopMove();
+    cancelFlipAnim();
+    currentTaskId = null;
     goScore.textContent = score || 0;
     showScreen('gameoverScreen');
   });
 
   socket.on('play_again', () => {
     gameActive = false;
-    stopMove();
+    cancelFlipAnim();
+    currentTaskId = null;
     showScreen('waitScreen');
     waitMsg.textContent = 'Waiting for the TV host to start a new game.';
   });
 
   socket.on('cooking_action_error', ({ reason }) => {
-    // Brief flash on the actions area
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:rgba(255,100,100,0.9);color:#fff;padding:10px 20px;border-radius:10px;font-size:15px;z-index:200;';
     el.textContent = reason;

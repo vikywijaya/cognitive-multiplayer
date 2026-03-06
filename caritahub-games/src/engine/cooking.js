@@ -1,306 +1,321 @@
 'use strict';
 
 /**
- * Server-side Cooking Game engine (Overcooked-style).
+ * Multiplayer Cooking Game Engine — Task-Based
  *
- * Kitchen: 10-col × 7-row grid.
- * Top row (row 1) and bottom row (row 5) are station tiles.
- * Rows 2-4 are walkable floor.
+ * TV = Master Display showing 4 active orders + task assignments.
+ * Phones = Personal Workstations receiving specific mini-game tasks.
  *
- * Item state machine:
- *   lettuce_raw → (wash) → lettuce_washed → (chop) → lettuce_chopped
- *   tomato_raw  → (wash) → tomato_washed  → (chop) → tomato_chopped
- *   potato_raw  → (wash) → potato_washed  → (stove 8s) → potato_cooked → (15s) → potato_burnt
+ * Task types:
+ *   chopping  — rapid tap (target: 20 taps)
+ *   stirring  — circular swipe (target: 8 circles)
+ *   flipping  — timed QTE (tap when bar is in green zone)
+ *
+ * Orders are multi-step recipes composed of tasks assigned to specific players.
  *
  * Recipes:
- *   Salad      = lettuce_chopped + tomato_chopped  → 100pts
- *   Potato Soup = potato_cooked  + tomato_chopped  → 150pts
+ *   Burger   = Chop Onions + Grill Patty + Assemble          → 100pts
+ *   Sushi    = Chop Fish   + Prepare Rice + Roll              → 120pts
+ *   Pasta    = Chop Veggies + Stir Sauce + Plate              → 110pts
+ *   Pancake  = Stir Batter  + Flip Pancake + Plate            → 90pts
+ *
+ * Gameplay loop:
+ *   1. Orders appear on TV with assigned tasks per player
+ *   2. Phone receives a specific task with a mini-game
+ *   3. Player completes mini-game → task done
+ *   4. When all tasks for an order are done → order served → points
+ *   5. If order timer expires → penalty
  */
 
-const COLS = 10;
-const ROWS = 7;
 const GAME_DURATION_MS = 180_000; // 3 minutes
-const COOK_MS = 8_000;            // potato cooks in 8s
-const BURN_EXTRA_MS = 15_000;     // burns 15s after cooked
-const ORDER_INTERVAL_MS = 22_000; // new order every 22s
-const ORDER_LIFETIME_MS = 65_000;
+const ORDER_INTERVAL_MS = 15_000; // new order every 15s
+const ORDER_LIFETIME_MS = 60_000; // each order lasts 60s
 const MAX_ORDERS = 4;
 const MAX_PLAYERS = 4;
-const SCORE_PENALTY = 50;
+const SCORE_PENALTY = 30;
+const TASK_TIMEOUT_MS = 20_000; // individual task timeout
 
-const T = {
-  WALL:          'W',
-  FLOOR:         'F',
-  LETTUCE_SHELF: 'LS',
-  POTATO_SHELF:  'PS',
-  TOMATO_SHELF:  'TS',
-  SINK:          'SK',
-  CUTTING_BOARD: 'CB',
-  STOVE:         'ST',
-  COUNTER:       'CT',
-  SERVE:         'SW',
+// ── Task definitions ────────────────────────────────────────────────────────
+
+const TASK_TYPES = {
+  chop_onions:    { type: 'chopping', label: 'Chop Onions',   emoji: '🧅', targetTaps: 20, timeMs: 12_000 },
+  chop_fish:      { type: 'chopping', label: 'Chop Fish',     emoji: '🐟', targetTaps: 15, timeMs: 10_000 },
+  chop_veggies:   { type: 'chopping', label: 'Chop Veggies',  emoji: '🥦', targetTaps: 18, timeMs: 11_000 },
+  grill_patty:    { type: 'flipping', label: 'Grill Patty',   emoji: '🥩', timeMs: 8_000 },
+  prepare_rice:   { type: 'stirring', label: 'Prepare Rice',  emoji: '🍚', targetCircles: 8, timeMs: 10_000 },
+  stir_sauce:     { type: 'stirring', label: 'Stir Sauce',    emoji: '🍅', targetCircles: 10, timeMs: 12_000 },
+  stir_batter:    { type: 'stirring', label: 'Stir Batter',   emoji: '🥣', targetCircles: 8, timeMs: 10_000 },
+  flip_pancake:   { type: 'flipping', label: 'Flip Pancake',  emoji: '🥞', timeMs: 6_000 },
+  roll_sushi:     { type: 'flipping', label: 'Roll Sushi',    emoji: '🍣', timeMs: 8_000 },
+  assemble:       { type: 'flipping', label: 'Assemble Burger', emoji: '🍔', timeMs: 7_000 },
+  plate_pasta:    { type: 'flipping', label: 'Plate Pasta',   emoji: '🍝', timeMs: 6_000 },
+  plate_pancake:  { type: 'flipping', label: 'Plate Pancake', emoji: '🥞', timeMs: 6_000 },
 };
 
-// MAP[row][col]
-const MAP = [
-  ['W','W', 'W', 'W', 'W', 'W', 'W', 'W', 'W','W'],  // row 0 – top wall
-  ['W','LS','PS','TS','SK','CB','ST','CT','SW','W'],    // row 1 – top stations
-  ['W','F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'W'],  // row 2 – floor
-  ['W','F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'W'],  // row 3 – floor
-  ['W','F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'W'],  // row 4 – floor
-  ['W','CT','CT','SK','CB','ST','CT','CT','SW','W'],    // row 5 – bottom stations
-  ['W','W', 'W', 'W', 'W', 'W', 'W', 'W', 'W','W'],   // row 6 – bottom wall
+// ── Recipes ─────────────────────────────────────────────────────────────────
+
+const RECIPES = [
+  {
+    name: 'Burger', emoji: '🍔', points: 100,
+    steps: ['chop_onions', 'grill_patty', 'assemble'],
+  },
+  {
+    name: 'Sushi', emoji: '🍣', points: 120,
+    steps: ['chop_fish', 'prepare_rice', 'roll_sushi'],
+  },
+  {
+    name: 'Pasta', emoji: '🍝', points: 110,
+    steps: ['chop_veggies', 'stir_sauce', 'plate_pasta'],
+  },
+  {
+    name: 'Pancake', emoji: '🥞', points: 90,
+    steps: ['stir_batter', 'flip_pancake', 'plate_pancake'],
+  },
 ];
 
 const PLAYER_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12'];
 
-const PLAYER_STARTS = [
-  { x: 2, y: 2 },
-  { x: 7, y: 4 },
-  { x: 7, y: 2 },
-  { x: 2, y: 4 },
-];
-
-// Item display labels
-const ITEM_LABELS = {
-  lettuce_raw:     'Lettuce',
-  lettuce_washed:  'Washed Lettuce',
-  lettuce_chopped: 'Chopped Lettuce',
-  tomato_raw:      'Tomato',
-  tomato_washed:   'Washed Tomato',
-  tomato_chopped:  'Chopped Tomato',
-  potato_raw:      'Potato',
-  potato_washed:   'Washed Potato',
-  potato_cooking:  'Cooking…',
-  potato_cooked:   'Cooked Potato',
-  potato_burnt:    'Burnt! 🔥',
-  salad:           'Salad',
-  potato_soup:     'Potato Soup',
-};
-
-const ITEM_EMOJI = {
-  lettuce_raw: '🥬', lettuce_washed: '🥬', lettuce_chopped: '🥗',
-  tomato_raw: '🍅', tomato_washed: '🍅', tomato_chopped: '🍅',
-  potato_raw: '🥔', potato_washed: '🥔', potato_cooking: '🍲',
-  potato_cooked: '🥔', potato_burnt: '🫘',
-  salad: '🥗', potato_soup: '🥣',
-};
-
-const RECIPES = [
-  {
-    name: 'Salad', emoji: '🥗',
-    ingredients: ['lettuce_chopped', 'tomato_chopped'],
-    result: 'salad', points: 100,
-  },
-  {
-    name: 'Potato Soup', emoji: '🥣',
-    ingredients: ['potato_cooked', 'tomato_chopped'],
-    result: 'potato_soup', points: 150,
-  },
-];
-
-// Items that count as completed dishes (can be served)
-const DISH_ITEMS = new Set(['salad', 'potato_soup']);
-
-// Items that need washing (input → washed output)
-const WASH_MAP = {
-  lettuce_raw: 'lettuce_washed',
-  tomato_raw:  'tomato_washed',
-  potato_raw:  'potato_washed',
-};
-
-// Items that need chopping (input → chopped output)
-const CHOP_MAP = {
-  lettuce_washed: 'lettuce_chopped',
-  tomato_washed:  'tomato_chopped',
-};
-
-// Items that can be cooked on stove
-const COOKABLE = new Set(['potato_washed']);
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function getTile(x, y) {
-  if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return T.WALL;
-  return MAP[y][x];
-}
-
-function isFloor(x, y) { return getTile(x, y) === T.FLOOR; }
-
-function tileKey(x, y) { return `${x},${y}`; }
-
-function adjacentStations(x, y) {
-  const result = [];
-  for (const [dx, dy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
-    const nx = x + dx, ny = y + dy;
-    const t = getTile(nx, ny);
-    if (t !== T.FLOOR && t !== T.WALL) result.push({ x: nx, y: ny, tile: t });
-  }
-  return result;
-}
-
-function tryCombine(itemA, itemB) {
-  for (const recipe of RECIPES) {
-    const [i0, i1] = recipe.ingredients;
-    if ((itemA === i0 && itemB === i1) || (itemA === i1 && itemB === i0)) {
-      return recipe.result;
-    }
-  }
-  return null;
-}
-
-// ── Engine factory ────────────────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 let _orderIdSeq = 0;
+let _taskIdSeq  = 0;
+
+function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// ── Engine factory ──────────────────────────────────────────────────────────
 
 function createGame() {
-  const players = [];        // { id, name, color, x, y, holding }
-  const stations = new Map(); // tileKey → { item, cookStart, cooked, burnt }
-  const orders = [];
-  let score = 0;
-  let timeLeftMs = GAME_DURATION_MS;
-  let lastTickAt = null;
-  let orderAccum = 0;
-  let over = false;
+  const players = [];      // { id, name, color, score, currentTask }
+  const orders  = [];      // active orders
+  let teamScore   = 0;
+  let timeLeftMs  = GAME_DURATION_MS;
+  let lastTickAt  = null;
+  let orderAccum  = 0;
+  let over        = false;
+  let tasksCompleted = 0;
+  let ordersFilled   = 0;
+  let ordersExpired  = 0;
 
-  // Seed one order immediately
-  orders.push(_makeOrder());
+  // Note: initial orders are spawned on first tick (after players are added)
 
-  // ── Player management ───────────────────────────────────────────────────────
+  // ── Player management ───────────────────────────────────────────────────
 
   function addPlayer(id, name) {
     if (players.length >= MAX_PLAYERS) return null;
     const idx = players.length;
     const color = PLAYER_COLORS[idx];
-    const start = PLAYER_STARTS[idx] || { x: 4, y: 3 };
-    const player = { id, name, color, x: start.x, y: start.y, holding: null };
+    const player = { id, name, color, score: 0, currentTask: null };
     players.push(player);
     return player;
   }
 
   function removePlayer(id) {
     const idx = players.findIndex(p => p.id === id);
-    if (idx !== -1) players.splice(idx, 1);
+    if (idx !== -1) {
+      // Unassign any tasks belonging to this player
+      const player = players[idx];
+      for (const order of orders) {
+        for (const task of order.tasks) {
+          if (task.assignedTo === player.name && task.status === 'active') {
+            task.status = 'pending';
+            task.assignedTo = null;
+          }
+        }
+      }
+      players.splice(idx, 1);
+    }
   }
 
   function getPlayer(id) { return players.find(p => p.id === id) || null; }
 
-  // ── Movement ────────────────────────────────────────────────────────────────
+  // ── Order & Task management ─────────────────────────────────────────────
 
-  function move(playerId, dir) {
-    const p = getPlayer(playerId);
-    if (!p || over) return false;
-    const DIRS = { up:[0,-1], down:[0,1], left:[-1,0], right:[1,0] };
-    const d = DIRS[dir];
-    if (!d) return false;
-    const nx = p.x + d[0], ny = p.y + d[1];
-    if (!isFloor(nx, ny)) return false;
-    if (players.some(o => o.id !== playerId && o.x === nx && o.y === ny)) return false;
-    p.x = nx;
-    p.y = ny;
-    return true;
+  function _spawnOrder() {
+    if (orders.length >= MAX_ORDERS || players.length === 0) return;
+    const recipe = pickRandom(RECIPES);
+    const orderId = ++_orderIdSeq;
+
+    // Create tasks from recipe steps and assign to players round-robin
+    const tasks = recipe.steps.map((stepKey, i) => {
+      const taskDef = TASK_TYPES[stepKey];
+      // Assign tasks to different players (round-robin across available players)
+      const assignee = players.length > 0 ? players[i % players.length] : null;
+      return {
+        id: ++_taskIdSeq,
+        taskKey: stepKey,
+        type: taskDef.type,
+        label: taskDef.label,
+        emoji: taskDef.emoji,
+        targetTaps: taskDef.targetTaps || 0,
+        targetCircles: taskDef.targetCircles || 0,
+        timeMs: taskDef.timeMs,
+        assignedTo: assignee ? assignee.name : null,
+        assignedColor: assignee ? assignee.color : null,
+        status: 'pending', // pending → active → completed | failed
+        progress: 0,       // taps or circles completed
+        startedAt: null,
+        // For flipping QTE
+        qteWindowStart: null,
+        qteWindowEnd: null,
+        qteResult: null,
+      };
+    });
+
+    // First task starts as active
+    if (tasks.length > 0) {
+      tasks[0].status = 'active';
+    }
+
+    orders.push({
+      id: orderId,
+      recipeName: recipe.name,
+      emoji: recipe.emoji,
+      points: recipe.points,
+      tasks,
+      timeLeft: ORDER_LIFETIME_MS,
+      maxTime: ORDER_LIFETIME_MS,
+      status: 'active', // active → completed | expired
+    });
   }
 
-  // ── Action ──────────────────────────────────────────────────────────────────
+  // Check if order's current active task is done and advance
+  function _advanceOrder(order) {
+    const currentIdx = order.tasks.findIndex(t => t.status === 'active');
+    if (currentIdx === -1) return;
 
-  function action(playerId, stationX, stationY) {
-    const p = getPlayer(playerId);
-    if (!p || over) return { ok: false, reason: 'Game not active' };
+    const current = order.tasks[currentIdx];
+    if (current.status !== 'completed') return;
 
-    const adj = adjacentStations(p.x, p.y);
-    if (!adj.some(s => s.x === stationX && s.y === stationY)) {
-      return { ok: false, reason: 'Not adjacent' };
+    // Move to next task
+    const nextIdx = currentIdx + 1;
+    if (nextIdx < order.tasks.length) {
+      order.tasks[nextIdx].status = 'active';
+    } else {
+      // All tasks done — order complete!
+      order.status = 'completed';
+      teamScore += order.points;
+      ordersFilled++;
     }
-
-    const tile = getTile(stationX, stationY);
-    const key  = tileKey(stationX, stationY);
-    const si   = stations.get(key);
-    const held = p.holding;
-
-    // ── No item held: try to pick up ──────────────────────────────────────────
-    if (!held) {
-      if (tile === T.LETTUCE_SHELF) { p.holding = 'lettuce_raw'; return { ok: true, action: 'pickup', item: p.holding }; }
-      if (tile === T.TOMATO_SHELF)  { p.holding = 'tomato_raw';  return { ok: true, action: 'pickup', item: p.holding }; }
-      if (tile === T.POTATO_SHELF)  { p.holding = 'potato_raw';  return { ok: true, action: 'pickup', item: p.holding }; }
-
-      if (si && si.item) {
-        if (tile === T.STOVE && si.cookStart && !si.cooked) {
-          return { ok: false, reason: 'Still cooking' };
-        }
-        p.holding = si.item;
-        stations.delete(key);
-        return { ok: true, action: 'pickup', item: p.holding };
-      }
-      return { ok: false, reason: 'Nothing to pick up' };
-    }
-
-    // ── Holding an item ───────────────────────────────────────────────────────
-
-    // Serve completed dish
-    if (tile === T.SERVE) {
-      if (!DISH_ITEMS.has(held)) return { ok: false, reason: 'Not a completed dish' };
-      const idx = orders.findIndex(o => o.result === held);
-      if (idx === -1) return { ok: false, reason: 'No order for this dish' };
-      const order = orders.splice(idx, 1)[0];
-      score += order.points;
-      p.holding = null;
-      return { ok: true, action: 'served', points: order.points, dish: held };
-    }
-
-    // Wash at sink
-    if (tile === T.SINK) {
-      const washed = WASH_MAP[held];
-      if (!washed) return { ok: false, reason: `Can't wash ${held}` };
-      p.holding = washed;
-      return { ok: true, action: 'washed', item: p.holding };
-    }
-
-    // Chop at cutting board
-    if (tile === T.CUTTING_BOARD) {
-      const chopped = CHOP_MAP[held];
-      if (!chopped) return { ok: false, reason: `Can't chop ${held}` };
-      p.holding = chopped;
-      return { ok: true, action: 'chopped', item: p.holding };
-    }
-
-    // Place on stove to cook
-    if (tile === T.STOVE) {
-      if (si && si.item) return { ok: false, reason: 'Stove occupied' };
-      if (!COOKABLE.has(held)) return { ok: false, reason: `Can't cook ${held}` };
-      stations.set(key, { item: 'potato_cooking', cookStart: Date.now(), cooked: false, burnt: false });
-      p.holding = null;
-      return { ok: true, action: 'cooking_started' };
-    }
-
-    // Put down on counter (or combine)
-    if (tile === T.COUNTER) {
-      if (si && si.item) {
-        const combined = tryCombine(si.item, held);
-        if (combined) {
-          stations.set(key, { item: combined });
-          p.holding = null;
-          return { ok: true, action: 'combined', result: combined };
-        }
-        // Swap: pick up what's there, put down what's held
-        const prev = si.item;
-        stations.set(key, { item: held });
-        p.holding = prev;
-        return { ok: true, action: 'swapped', putDown: held, pickedUp: prev };
-      }
-      stations.set(key, { item: held });
-      p.holding = null;
-      return { ok: true, action: 'put_down', item: held };
-    }
-
-    return { ok: false, reason: 'No valid action here' };
   }
 
-  // ── Game tick (call every ~200ms) ─────────────────────────────────────────
+  // Assign waiting tasks when players become free
+  function _reassignTasks() {
+    for (const order of orders) {
+      if (order.status !== 'active') continue;
+      for (const task of order.tasks) {
+        if (task.status !== 'active') continue;
+        if (task.assignedTo) {
+          // Check if assigned player still exists
+          const p = players.find(pl => pl.name === task.assignedTo);
+          if (!p) {
+            // Re-assign to someone free
+            const free = players.find(pl => !pl.currentTask);
+            if (free) {
+              task.assignedTo = free.name;
+              task.assignedColor = free.color;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // ── Player actions (mini-game inputs) ───────────────────────────────────
+
+  // Called when player taps (for chopping)
+  function tapAction(playerId) {
+    const player = getPlayer(playerId);
+    if (!player || over) return { ok: false, reason: 'Not active' };
+
+    const task = _getActiveTaskForPlayer(player.name);
+    if (!task) return { ok: false, reason: 'No active task' };
+    if (task.type !== 'chopping') return { ok: false, reason: 'Wrong action for this task' };
+
+    task.progress++;
+    if (task.progress >= task.targetTaps) {
+      _completeTask(task, player);
+      return { ok: true, action: 'task_completed', taskId: task.id };
+    }
+    return { ok: true, action: 'tap_registered', progress: task.progress, target: task.targetTaps };
+  }
+
+  // Called for stirring progress (circular motion)
+  function stirAction(playerId, circles) {
+    const player = getPlayer(playerId);
+    if (!player || over) return { ok: false, reason: 'Not active' };
+
+    const task = _getActiveTaskForPlayer(player.name);
+    if (!task) return { ok: false, reason: 'No active task' };
+    if (task.type !== 'stirring') return { ok: false, reason: 'Wrong action for this task' };
+
+    task.progress = Math.min(task.targetCircles, task.progress + (circles || 1));
+    if (task.progress >= task.targetCircles) {
+      _completeTask(task, player);
+      return { ok: true, action: 'task_completed', taskId: task.id };
+    }
+    return { ok: true, action: 'stir_registered', progress: task.progress, target: task.targetCircles };
+  }
+
+  // Called for flipping QTE (player taps at the right moment)
+  function flipAction(playerId, timing) {
+    const player = getPlayer(playerId);
+    if (!player || over) return { ok: false, reason: 'Not active' };
+
+    const task = _getActiveTaskForPlayer(player.name);
+    if (!task) return { ok: false, reason: 'No active task' };
+    if (task.type !== 'flipping') return { ok: false, reason: 'Wrong action for this task' };
+
+    // timing is a value 0-1 representing where the bar was when tapped
+    // Green zone is 0.4 - 0.6
+    const inGreen = timing >= 0.35 && timing <= 0.65;
+    if (inGreen) {
+      _completeTask(task, player);
+      return { ok: true, action: 'task_completed', result: 'perfect', taskId: task.id };
+    } else {
+      // Failed flip — player can retry
+      task.progress = 0; // reset
+      return { ok: true, action: 'flip_missed', result: 'miss' };
+    }
+  }
+
+  function _getActiveTaskForPlayer(playerName) {
+    for (const order of orders) {
+      if (order.status !== 'active') continue;
+      for (const task of order.tasks) {
+        if (task.status === 'active' && task.assignedTo === playerName) {
+          return task;
+        }
+      }
+    }
+    return null;
+  }
+
+  function _completeTask(task, player) {
+    task.status = 'completed';
+    tasksCompleted++;
+    player.score += 10; // bonus per task
+
+    // Find the order this task belongs to and advance
+    for (const order of orders) {
+      const idx = order.tasks.findIndex(t => t.id === task.id);
+      if (idx !== -1) {
+        _advanceOrder(order);
+        break;
+      }
+    }
+  }
+
+  // ── Game tick (call every ~200ms) ───────────────────────────────────────
 
   function tick() {
     if (over) return;
     const now = Date.now();
-    if (lastTickAt === null) { lastTickAt = now; return; }
+    if (lastTickAt === null) {
+      lastTickAt = now;
+      // Spawn initial orders now that players are registered
+      while (orders.length < 2 && players.length > 0) _spawnOrder();
+      return;
+    }
     const dt = now - lastTickAt;
     lastTickAt = now;
 
@@ -310,163 +325,107 @@ function createGame() {
 
     // Order timers & expiry
     for (let i = orders.length - 1; i >= 0; i--) {
-      orders[i].timeLeft -= dt;
-      if (orders[i].timeLeft <= 0) {
+      const order = orders[i];
+      if (order.status !== 'active') continue;
+      order.timeLeft -= dt;
+      if (order.timeLeft <= 0) {
+        order.status = 'expired';
         orders.splice(i, 1);
-        score = Math.max(0, score - SCORE_PENALTY);
+        teamScore = Math.max(0, teamScore - SCORE_PENALTY);
+        ordersExpired++;
+      }
+    }
+
+    // Remove completed orders
+    for (let i = orders.length - 1; i >= 0; i--) {
+      if (orders[i].status === 'completed') {
+        orders.splice(i, 1);
       }
     }
 
     // Spawn new orders
     orderAccum += dt;
-    if (orderAccum >= ORDER_INTERVAL_MS && orders.length < MAX_ORDERS) {
-      orders.push(_makeOrder());
+    if (orderAccum >= ORDER_INTERVAL_MS && orders.length < MAX_ORDERS && players.length > 0) {
+      _spawnOrder();
       orderAccum = 0;
     }
 
-    // Stove cooking
-    for (const [, si] of stations) {
-      if (si.item === 'potato_cooking' && si.cookStart) {
-        const elapsed = now - si.cookStart;
-        if (elapsed >= COOK_MS + BURN_EXTRA_MS) {
-          si.item = 'potato_burnt';
-          si.cooked = true;
-          si.burnt = true;
-        } else if (elapsed >= COOK_MS && !si.cooked) {
-          si.item = 'potato_cooked';
-          si.cooked = true;
-        }
-      }
-    }
+    _reassignTasks();
   }
 
-  // ── State snapshot ────────────────────────────────────────────────────────
-
-  function getAvailableActions(player) {
-    if (!player || over) return [];
-    const adj = adjacentStations(player.x, player.y);
-    const actions = [];
-    for (const { x, y, tile } of adj) {
-      const key = tileKey(x, y);
-      const si  = stations.get(key);
-      const held = player.holding;
-
-      if (!held) {
-        if (tile === T.LETTUCE_SHELF) actions.push({ stationX: x, stationY: y, label: 'Pick up Lettuce 🥬', tile });
-        else if (tile === T.TOMATO_SHELF) actions.push({ stationX: x, stationY: y, label: 'Pick up Tomato 🍅', tile });
-        else if (tile === T.POTATO_SHELF) actions.push({ stationX: x, stationY: y, label: 'Pick up Potato 🥔', tile });
-        else if ((tile === T.COUNTER || tile === T.STOVE || tile === T.SINK || tile === T.CUTTING_BOARD) && si && si.item) {
-          if (tile === T.STOVE && si.cookStart && !si.cooked) {
-            const elapsed = Date.now() - si.cookStart;
-            const pct = Math.min(100, Math.round(elapsed / COOK_MS * 100));
-            actions.push({ stationX: x, stationY: y, label: `Cooking… ${pct}%`, tile, disabled: true });
-          } else {
-            const emoji = ITEM_EMOJI[si.item] || '📦';
-            const lbl   = ITEM_LABELS[si.item] || si.item;
-            actions.push({ stationX: x, stationY: y, label: `Pick up ${emoji} ${lbl}`, tile });
-          }
-        }
-      } else {
-        // Holding an item
-        if (tile === T.SERVE && DISH_ITEMS.has(held)) {
-          actions.push({ stationX: x, stationY: y, label: `🍽️ SERVE ${ITEM_LABELS[held] || held}!`, tile, primary: true });
-        } else if (tile === T.SINK && WASH_MAP[held]) {
-          actions.push({ stationX: x, stationY: y, label: `🚿 Wash ${ITEM_LABELS[held] || held}`, tile });
-        } else if (tile === T.CUTTING_BOARD && CHOP_MAP[held]) {
-          actions.push({ stationX: x, stationY: y, label: `🔪 Chop ${ITEM_LABELS[held] || held}`, tile });
-        } else if (tile === T.STOVE && COOKABLE.has(held) && (!si || !si.item)) {
-          actions.push({ stationX: x, stationY: y, label: `🔥 Cook ${ITEM_LABELS[held] || held}`, tile });
-        } else if (tile === T.COUNTER) {
-          if (si && si.item) {
-            const combined = tryCombine(si.item, held);
-            if (combined) {
-              actions.push({ stationX: x, stationY: y, label: `🍽️ Combine → ${ITEM_LABELS[combined] || combined}`, tile, primary: true });
-            } else {
-              actions.push({ stationX: x, stationY: y, label: `↔️ Swap with ${ITEM_EMOJI[si.item] || ''} ${ITEM_LABELS[si.item] || si.item}`, tile });
-            }
-          } else {
-            actions.push({ stationX: x, stationY: y, label: `📥 Put down ${ITEM_LABELS[held] || held}`, tile });
-          }
-        }
-      }
-    }
-    return actions;
-  }
+  // ── State snapshots ─────────────────────────────────────────────────────
 
   function state() {
-    const now = Date.now();
     return {
-      map: MAP,
-      cols: COLS,
-      rows: ROWS,
       players: players.map(p => ({
-        id:      p.id,
-        name:    p.name,
-        color:   p.color,
-        x:       p.x,
-        y:       p.y,
-        holding: p.holding,
-        holdingLabel: p.holding ? (ITEM_LABELS[p.holding] || p.holding) : null,
-        holdingEmoji: p.holding ? (ITEM_EMOJI[p.holding]  || '📦')       : null,
+        id:    p.id,
+        name:  p.name,
+        color: p.color,
+        score: p.score,
+        hasTask: !!_getActiveTaskForPlayer(p.name),
+        taskLabel: _getActiveTaskForPlayer(p.name)?.label || null,
+        taskEmoji: _getActiveTaskForPlayer(p.name)?.emoji || null,
       })),
-      stations: Object.fromEntries(
-        [...stations.entries()].map(([k, si]) => {
-          const cookProgress = (si.cookStart && !si.burnt)
-            ? Math.min(1, (now - si.cookStart) / COOK_MS)
-            : null;
-          return [k, {
-            item:         si.item,
-            label:        ITEM_LABELS[si.item] || si.item,
-            emoji:        ITEM_EMOJI[si.item]  || '📦',
-            cookProgress,
-            cooked:       si.cooked || false,
-            burnt:        si.burnt  || false,
-          }];
-        })
-      ),
-      orders: orders.map(o => ({
+      orders: orders.filter(o => o.status === 'active').map(o => ({
         id:         o.id,
         recipeName: o.recipeName,
         emoji:      o.emoji,
+        points:     o.points,
         timeLeft:   Math.max(0, o.timeLeft),
         maxTime:    o.maxTime,
-        points:     o.points,
+        tasks: o.tasks.map(t => ({
+          id:            t.id,
+          label:         t.label,
+          emoji:         t.emoji,
+          type:          t.type,
+          assignedTo:    t.assignedTo,
+          assignedColor: t.assignedColor,
+          status:        t.status,
+          progress:      t.progress,
+          targetTaps:    t.targetTaps,
+          targetCircles: t.targetCircles,
+        })),
       })),
-      score,
+      score:      teamScore,
       timeLeftMs: Math.max(0, timeLeftMs),
       over,
+      stats: { tasksCompleted, ordersFilled, ordersExpired },
     };
   }
 
+  // Personal state for a single player's phone
   function playerState(playerId) {
     const p = getPlayer(playerId);
     if (!p) return null;
+
+    const task = _getActiveTaskForPlayer(p.name);
     return {
-      id:           p.id,
-      name:         p.name,
-      color:        p.color,
-      holding:      p.holding,
-      holdingLabel: p.holding ? (ITEM_LABELS[p.holding] || p.holding) : null,
-      holdingEmoji: p.holding ? (ITEM_EMOJI[p.holding]  || '📦')       : null,
-      actions:      getAvailableActions(p),
+      id:    p.id,
+      name:  p.name,
+      color: p.color,
+      score: p.score,
+      task: task ? {
+        id:            task.id,
+        taskKey:       task.taskKey,
+        type:          task.type,
+        label:         task.label,
+        emoji:         task.emoji,
+        targetTaps:    task.targetTaps,
+        targetCircles: task.targetCircles,
+        timeMs:        task.timeMs,
+        progress:      task.progress,
+        status:        task.status,
+      } : null,
     };
   }
 
-  return { addPlayer, removePlayer, getPlayer, move, action, tick, state, playerState, get players() { return players; } };
-}
-
-function _makeOrder() {
-  const recipe = RECIPES[Math.floor(Math.random() * RECIPES.length)];
   return {
-    id:         ++_orderIdSeq,
-    recipeName: recipe.name,
-    emoji:      recipe.emoji,
-    ingredients: recipe.ingredients.slice(),
-    result:     recipe.result,
-    points:     recipe.points,
-    timeLeft:   ORDER_LIFETIME_MS,
-    maxTime:    ORDER_LIFETIME_MS,
+    addPlayer, removePlayer, getPlayer,
+    tapAction, stirAction, flipAction,
+    tick, state, playerState,
+    get players() { return players; },
+    get over() { return over; },
   };
 }
 
-module.exports = { createGame, MAP, COLS, ROWS, T, PLAYER_COLORS };
+module.exports = { createGame, PLAYER_COLORS, RECIPES, TASK_TYPES };

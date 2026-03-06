@@ -8,10 +8,10 @@
 </head>
 <body>
 
-  <!-- ── Lobby Phase ── -->
+  <!-- Lobby Phase -->
   <div id="lobbyPhase" class="phase active">
-    <div class="lobby-title">🍳 TV Cooking</div>
-    <div class="lobby-subtitle">Overcooked-style multiplayer! Scan with your phone to join.</div>
+    <div class="lobby-title">🍳 Kitchen Rush!</div>
+    <div class="lobby-subtitle">Multiplayer Cooking — Scan with your phone to join as a chef!</div>
     <div class="lobby-body">
       <div class="qr-section">
         <div class="qr-box">
@@ -21,53 +21,59 @@
         <div id="joinUrl" class="qr-url"></div>
       </div>
       <div class="player-section">
-        <div class="player-section-title">Players Joined</div>
+        <div class="player-section-title">Chefs Joined</div>
         <div id="lobbyPlayerList" class="player-list">
-          <div class="player-empty">Waiting for players…</div>
+          <div class="player-empty">Waiting for chefs…</div>
         </div>
         <button id="startBtn" class="start-btn" disabled>Start Cooking!</button>
       </div>
     </div>
   </div>
 
-  <!-- ── Playing Phase ── -->
+  <!-- Playing Phase -->
   <div id="playingPhase" class="phase">
-    <div class="sidebar">
-      <div class="game-title">🍳 TV Cooking</div>
-
-      <div class="timer-block">
-        <div class="timer-label">Time Left</div>
-        <div class="timer-value" id="timerDisplay">3:00</div>
+    <!-- Top bar: timer + score -->
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <span class="game-title">🍳 Kitchen Rush!</span>
       </div>
-
-      <div class="score-block">
-        <div class="score-label">Score</div>
-        <div class="score-value" id="scoreDisplay">0</div>
+      <div class="top-bar-center">
+        <div class="timer-block">
+          <span class="timer-label">TIME</span>
+          <span class="timer-value" id="timerDisplay">3:00</span>
+        </div>
       </div>
-
-      <div class="orders-title">Orders 📋</div>
-      <div class="orders-list" id="ordersList">
-        <div class="player-empty">No orders yet…</div>
+      <div class="top-bar-right">
+        <div class="score-block">
+          <span class="score-label">SCORE</span>
+          <span class="score-value" id="scoreDisplay">0</span>
+        </div>
       </div>
-
-      <div class="players-section-title">Chefs 👨‍🍳</div>
-      <div class="players-list" id="playersList"></div>
     </div>
 
-    <div class="kitchen-wrap">
-      <canvas id="kitchenCanvas"></canvas>
+    <!-- Main area: orders grid -->
+    <div class="orders-grid" id="ordersGrid">
+      <!-- Filled dynamically -->
+      <div class="order-slot empty"><div class="order-slot-placeholder">Waiting for order…</div></div>
+      <div class="order-slot empty"><div class="order-slot-placeholder">Waiting for order…</div></div>
+      <div class="order-slot empty"><div class="order-slot-placeholder">Waiting for order…</div></div>
+      <div class="order-slot empty"><div class="order-slot-placeholder">Waiting for order…</div></div>
     </div>
+
+    <!-- Bottom bar: chef status -->
+    <div class="chefs-bar" id="chefsBar"></div>
   </div>
 
-  <!-- ── Game Over Phase ── -->
+  <!-- Game Over Phase -->
   <div id="gameoverPhase" class="phase">
     <div class="gameover-emoji">🏆</div>
     <div class="gameover-title">Time's Up!</div>
     <div class="gameover-score">Final Score: <span id="finalScore">0</span></div>
+    <div class="gameover-stats" id="gameoverStats"></div>
     <button id="playAgainBtn" class="gameover-btn">Play Again</button>
   </div>
 
-  <!-- ── Reconnect overlay ── -->
+  <!-- Reconnect overlay -->
   <div id="reconnectOverlay" class="reconnect-overlay hidden">
     Connection lost. Reconnecting…
   </div>

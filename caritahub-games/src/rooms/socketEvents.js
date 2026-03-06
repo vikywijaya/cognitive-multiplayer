@@ -1146,8 +1146,8 @@ module.exports = function wireEvents(io) {
       }
     });
 
-    // ── Cooking: player moves ─────────────────────────────────────────
-    socket.on('cooking_move', ({ direction }) => {
+    // ── Cooking: player tap (chopping mini-game) ─────────────────────
+    socket.on('cooking_tap', () => {
       const roomId = socket.data.roomId;
       if (!roomId) return;
       const engine = engines.get(roomId);
@@ -1155,35 +1155,82 @@ module.exports = function wireEvents(io) {
       if (!engine || !room) return;
       if (roomGameTypes.get(roomId) !== 'cooking') return;
       const playerName = socket.data.playerName;
-      engine.move(playerName, direction);
-      // Send updated personal state immediately (position + available actions)
-      const ps = engine.playerState(playerName);
-      if (ps) socket.emit('cooking_player_state', ps);
-    });
-
-    // ── Cooking: player performs station action ───────────────────────
-    socket.on('cooking_action', ({ stationX, stationY }) => {
-      const roomId = socket.data.roomId;
-      if (!roomId) return;
-      const engine = engines.get(roomId);
-      const room   = roomManager.getRoom(roomId);
-      if (!engine || !room) return;
-      if (roomGameTypes.get(roomId) !== 'cooking') return;
-      const playerName = socket.data.playerName;
-      const result = engine.action(playerName, stationX, stationY);
+      const result = engine.tapAction(playerName);
       if (!result.ok) {
         socket.emit('cooking_action_error', { reason: result.reason });
         return;
       }
-      // Broadcast full state + personal states immediately (don't wait for tick)
-      const gs = engine.state();
-      io.to(roomId).emit('cooking_state', gs);
-      for (const rp of room.players) {
-        if (rp.color === 'tv-host' || !rp.socketId) continue;
-        const ps = engine.playerState(rp.name);
-        if (ps) io.to(rp.socketId).emit('cooking_player_state', ps);
+      // Send personal state immediately
+      const ps = engine.playerState(playerName);
+      if (ps) socket.emit('cooking_player_state', ps);
+      // If task completed, broadcast full state
+      if (result.action === 'task_completed') {
+        const gs = engine.state();
+        io.to(roomId).emit('cooking_state', gs);
+        for (const rp of room.players) {
+          if (rp.color === 'tv-host' || !rp.socketId) continue;
+          const rps = engine.playerState(rp.name);
+          if (rps) io.to(rp.socketId).emit('cooking_player_state', rps);
+        }
       }
-      analytics.logEvent('move_made', roomId, socket.id, playerName, { action: result.action, gameType: 'cooking' });
+      analytics.logEvent('move_made', roomId, socket.id, playerName, { action: 'tap', gameType: 'cooking' });
+    });
+
+    // ── Cooking: player stir (stirring mini-game) ─────────────────────
+    socket.on('cooking_stir', ({ circles }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      const room   = roomManager.getRoom(roomId);
+      if (!engine || !room) return;
+      if (roomGameTypes.get(roomId) !== 'cooking') return;
+      const playerName = socket.data.playerName;
+      const result = engine.stirAction(playerName, circles || 1);
+      if (!result.ok) {
+        socket.emit('cooking_action_error', { reason: result.reason });
+        return;
+      }
+      const ps = engine.playerState(playerName);
+      if (ps) socket.emit('cooking_player_state', ps);
+      if (result.action === 'task_completed') {
+        const gs = engine.state();
+        io.to(roomId).emit('cooking_state', gs);
+        for (const rp of room.players) {
+          if (rp.color === 'tv-host' || !rp.socketId) continue;
+          const rps = engine.playerState(rp.name);
+          if (rps) io.to(rp.socketId).emit('cooking_player_state', rps);
+        }
+      }
+      analytics.logEvent('move_made', roomId, socket.id, playerName, { action: 'stir', gameType: 'cooking' });
+    });
+
+    // ── Cooking: player flip (QTE mini-game) ──────────────────────────
+    socket.on('cooking_flip', ({ timing }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      const room   = roomManager.getRoom(roomId);
+      if (!engine || !room) return;
+      if (roomGameTypes.get(roomId) !== 'cooking') return;
+      const playerName = socket.data.playerName;
+      const result = engine.flipAction(playerName, timing || 0);
+      if (!result.ok) {
+        socket.emit('cooking_action_error', { reason: result.reason });
+        return;
+      }
+      const ps = engine.playerState(playerName);
+      if (ps) socket.emit('cooking_player_state', ps);
+      if (result.action === 'task_completed') {
+        const gs = engine.state();
+        io.to(roomId).emit('cooking_state', gs);
+        for (const rp of room.players) {
+          if (rp.color === 'tv-host' || !rp.socketId) continue;
+          const rps = engine.playerState(rp.name);
+          if (rps) io.to(rp.socketId).emit('cooking_player_state', rps);
+        }
+      }
+      socket.emit('cooking_flip_result', { result: result.result || result.action });
+      analytics.logEvent('move_made', roomId, socket.id, playerName, { action: 'flip', gameType: 'cooking' });
     });
 
     // ── Snakes & Ladders: player rolls the dice ──────────────────────
