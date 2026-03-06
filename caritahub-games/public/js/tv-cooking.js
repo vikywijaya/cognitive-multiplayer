@@ -21,7 +21,7 @@ const lobbyPlayerList  = document.getElementById('lobbyPlayerList');
 const startBtn         = document.getElementById('startBtn');
 const timerDisplay     = document.getElementById('timerDisplay');
 const scoreDisplay     = document.getElementById('scoreDisplay');
-const ordersList       = document.getElementById('ordersList');
+const tablesList       = document.getElementById('tablesList');
 const chefsBar         = document.getElementById('chefsBar');
 const avatarsContainer = document.getElementById('avatarsContainer');
 const servingWindow    = document.getElementById('servingWindow');
@@ -176,66 +176,71 @@ function updateStationActivity(players) {
   });
 }
 
-// ── Orders panel rendering + SFX triggers ─────────────────────────────────
+// ── Dining room rendering + SFX triggers ──────────────────────────────────
 let prevOrderIds = new Set();
 let prevOrderCount = 0;
 
-function renderOrders(orders) {
+const CUSTOMER_GROUPS = [
+  ['👨', '👩'],
+  ['👴', '👵'],
+  ['👦', '👧', '🧑'],
+  ['👩‍💼'],
+  ['🧔', '👱‍♀️'],
+  ['👨‍🦱', '👩‍🦰'],
+];
+const TASK_ICONS = { chopping: '🔪', stirring: '🥄', flipping: '👆' };
+
+function moodEmoji(frac) {
+  if (frac > 0.65) return '😊';
+  if (frac > 0.4)  return '😐';
+  if (frac > 0.2)  return '😤';
+  return '😡';
+}
+
+function renderTables(orders) {
   if (!orders || !orders.length) {
-    ordersList.innerHTML = '<div class="order-empty-slot">Waiting for orders…</div>';
+    tablesList.innerHTML = '<div class="table-empty">Waiting for customers…</div>';
     prevOrderIds = new Set();
     prevOrderCount = 0;
     return;
   }
   const newIds = new Set(orders.map(o => o.id));
-
-  // Detect new orders
-  if (orders.length > prevOrderCount && prevOrderCount > 0) {
-    SFX.newOrder();
-  }
-
-  // Detect disappeared orders (completed or expired)
-  for (const oldId of prevOrderIds) {
-    if (!newIds.has(oldId)) {
-      // Could be served or expired — score pop handles served, expired handled below
-    }
-  }
-
+  if (orders.length > prevOrderCount && prevOrderCount > 0) SFX.newOrder();
   prevOrderIds = newIds;
   prevOrderCount = orders.length;
 
-  ordersList.innerHTML = orders.map(o => {
+  tablesList.innerHTML = orders.map(o => {
     const frac = o.timeLeft / o.maxTime;
-    const urgent = frac < 0.3;
+    const urgent = frac < 0.25;
+    const customers = CUSTOMER_GROUPS[o.id % CUSTOMER_GROUPS.length];
+    const tableN = (o.id % 4) + 1;
+
     const tasksHtml = o.tasks.map(t => {
-      let rightHtml = '';
+      const icon = TASK_ICONS[t.type] || '?';
       if (t.status === 'completed') {
-        rightHtml = '<span class="order-task-check">✓</span>';
+        return `<div class="dtask completed">${icon} ✓</div>`;
       } else if (t.status === 'claimed' && t.claimedBy) {
-        rightHtml = `<span class="order-task-claimer"><span class="order-task-claimer-dot" style="background:${t.claimedColor || '#888'}"></span>${escHtml(t.claimedBy)}</span>`;
+        const dot = t.claimedColor ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${t.claimedColor};margin-right:2px;vertical-align:middle;"></span>` : '';
+        return `<div class="dtask claimed">${icon} ${dot}${escHtml(t.claimedBy)}</div>`;
       } else {
-        rightHtml = '<span style="color:#ff9f43;font-size:11px;font-weight:700;">OPEN</span>';
+        return `<div class="dtask available">${icon} Open!</div>`;
       }
-      return `
-        <div class="order-task-row ${t.status}">
-          <span class="order-task-emoji">${t.emoji}</span>
-          <span class="order-task-label">${escHtml(t.label)}</span>
-          <span class="order-task-badge ${t.type}">${t.type}</span>
-          ${rightHtml}
-        </div>
-      `;
     }).join('');
 
     return `
-      <div class="order-ticket${urgent ? ' urgent' : ''}">
-        <div class="order-ticket-header">
-          <span class="order-ticket-name">${o.emoji} ${escHtml(o.recipeName)}</span>
-          <span class="order-ticket-pts">+${o.points}</span>
+      <div class="diner-table${urgent ? ' urgent' : ''}">
+        <div class="diner-header">
+          <div class="diner-customers">
+            ${customers.map(e => `<span class="customer-emoji">${e}</span>`).join('')}
+            <span class="mood-emoji">${moodEmoji(frac)}</span>
+          </div>
+          <div class="diner-dish">${o.emoji} ${escHtml(o.recipeName)}</div>
+          <div class="diner-pts">+${o.points}pts</div>
         </div>
-        <div class="order-timer-bar">
-          <div class="order-timer-fill" style="width:${Math.round(frac * 100)}%"></div>
+        <div class="diner-timer-bar">
+          <div class="diner-timer-fill" style="width:${Math.round(frac * 100)}%"></div>
         </div>
-        <div class="order-tasks-list">${tasksHtml}</div>
+        <div class="diner-tasks">${tasksHtml}</div>
       </div>
     `;
   }).join('');
@@ -289,7 +294,7 @@ function renderGameState(gs) {
 
   renderAvatars(gs.players);
   updateStationActivity(gs.players);
-  renderOrders(gs.orders);
+  renderTables(gs.orders);
   renderChefsBar(gs.players);
 }
 
