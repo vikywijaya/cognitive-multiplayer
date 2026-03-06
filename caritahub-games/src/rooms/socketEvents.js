@@ -378,10 +378,10 @@ function cookingTick(io, roomId) {
   if (gs.over) {
     clearInterval(cookingTimers.get(roomId));
     cookingTimers.delete(roomId);
-    io.to(roomId).emit('cooking_game_over', { score: gs.score });
+    io.to(roomId).emit('cooking_game_over', { score: gs.score, won: gs.won || false });
     engines.delete(roomId);
     roomGameTypes.delete(roomId);
-    analytics.logEvent('game_ended', roomId, 'server', 'timer', { score: gs.score, gameType: 'cooking' });
+    analytics.logEvent('game_ended', roomId, 'server', 'timer', { score: gs.score, won: gs.won || false, gameType: 'cooking' });
   }
 }
 

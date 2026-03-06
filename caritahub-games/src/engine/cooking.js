@@ -30,6 +30,7 @@ const ORDER_LIFETIME_MS = 60_000; // each order lasts 60s
 const MAX_ORDERS = 4;
 const MAX_PLAYERS = 4;
 const SCORE_PENALTY = 30;
+const TARGET_ORDERS = 8;          // serve this many to WIN!
 
 // ── Kitchen stations (for TV visualization) ─────────────────────────────────
 
@@ -93,6 +94,7 @@ function createGame() {
   let lastTickAt  = null;
   let orderAccum  = 0;
   let over        = false;
+  let won         = false;
   let tasksCompleted = 0;
   let ordersFilled   = 0;
   let ordersExpired  = 0;
@@ -250,6 +252,11 @@ function createGame() {
           order.status = 'completed';
           teamScore += order.points;
           ordersFilled++;
+          // Check win condition
+          if (ordersFilled >= TARGET_ORDERS) {
+            won = true;
+            over = true;
+          }
         }
         break;
       }
@@ -375,6 +382,8 @@ function createGame() {
       score: teamScore,
       timeLeftMs: Math.max(0, timeLeftMs),
       over,
+      won,
+      goal: TARGET_ORDERS,
       stats: { tasksCompleted, ordersFilled, ordersExpired },
       stations: STATIONS,
     };
@@ -435,4 +444,4 @@ function createGame() {
   };
 }
 
-module.exports = { createGame, PLAYER_COLORS, PLAYER_EMOJIS, RECIPES, TASK_TYPES, STATIONS };
+module.exports = { createGame, PLAYER_COLORS, PLAYER_EMOJIS, RECIPES, TASK_TYPES, STATIONS, TARGET_ORDERS };

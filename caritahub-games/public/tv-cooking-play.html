@@ -129,6 +129,7 @@
     }
     .gh-name { font-size: 16px; font-weight: 700; }
     .gh-score { font-size: 16px; font-weight: 700; color: #ff9f43; }
+    .gh-goal { font-size: 14px; font-weight: 800; color: #4ecca3; background: rgba(78,204,163,0.15); padding: 2px 8px; border-radius: 8px; }
     .gh-timer { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
     .gh-timer.low { color: #ff6b6b; animation: pulse 0.5s infinite alternate; }
     @keyframes pulse { from { opacity:1; } to { opacity:0.5; } }
@@ -306,6 +307,7 @@
     .go-title  { font-size: 36px; font-weight: 900; color: #ffd700; }
     .go-score  { font-size: 28px; color: #ccc; }
     .go-score span { color: #ffd700; font-weight: 900; font-size: 36px; }
+    .go-sub { font-size: 18px; color: #aaa; text-align: center; max-width: 300px; }
 
     /* ── Reconnect ── */
     .reconnect {
@@ -388,6 +390,7 @@
     <div class="game-header">
       <span class="gh-name" id="ghName"></span>
       <span class="gh-score" id="ghScore">0 pts</span>
+      <span class="gh-goal" id="ghGoal">0/8</span>
       <span class="gh-timer" id="ghTimer">3:00</span>
     </div>
     <div class="game-body" id="gameBody">
@@ -397,9 +400,10 @@
 
   <!-- Game Over -->
   <div id="gameoverScreen" class="screen">
-    <div class="go-emoji">🏆</div>
-    <div class="go-title">Time's Up!</div>
+    <div class="go-emoji" id="goEmoji">🏆</div>
+    <div class="go-title" id="goTitle">Time's Up!</div>
     <div class="go-score">Score: <span id="goScore">0</span></div>
+    <div class="go-sub" id="goSub"></div>
   </div>
 
   <!-- Reconnect -->
@@ -425,6 +429,7 @@
   const joinError      = document.getElementById('joinError');
   const ghName         = document.getElementById('ghName');
   const ghScore        = document.getElementById('ghScore');
+  const ghGoal         = document.getElementById('ghGoal');
   const ghTimer        = document.getElementById('ghTimer');
   const gameBody       = document.getElementById('gameBody');
   const goScore        = document.getElementById('goScore');
@@ -797,6 +802,9 @@
     const ms = gs.timeLeftMs || 0;
     ghTimer.textContent = formatTime(ms);
     ghTimer.classList.toggle('low', ms < 30000);
+    if (gs.goal && gs.stats) {
+      ghGoal.textContent = `${gs.stats.ordersFilled || 0}/${gs.goal}`;
+    }
   });
 
   socket.on('cooking_player_state', (ps) => {
@@ -826,13 +834,27 @@
     setTimeout(() => { if (el) el.textContent = ''; }, 1200);
   });
 
-  socket.on('cooking_game_over', ({ score }) => {
-    SFX.gameOver();
+  socket.on('cooking_game_over', ({ score, won }) => {
+    if (won) SFX.victory(); else SFX.gameOver();
     gameActive = false;
     cancelFlipAnim();
     if (phoneHtpTimer) { clearInterval(phoneHtpTimer); phoneHtpTimer = null; }
     currentView = 'choose'; currentTaskId = null;
     goScore.textContent = score || 0;
+    const goEmoji = document.getElementById('goEmoji');
+    const goTitle = document.getElementById('goTitle');
+    const goSub   = document.getElementById('goSub');
+    if (won) {
+      goEmoji.textContent = '🎉';
+      goTitle.textContent = 'You Won!';
+      goTitle.style.color = '#4ecca3';
+      goSub.textContent = 'All orders served! Amazing teamwork!';
+    } else {
+      goEmoji.textContent = '⏰';
+      goTitle.textContent = "Time's Up!";
+      goTitle.style.color = '#ffd700';
+      goSub.textContent = 'Better luck next time!';
+    }
     showScreen('gameoverScreen');
   });
 

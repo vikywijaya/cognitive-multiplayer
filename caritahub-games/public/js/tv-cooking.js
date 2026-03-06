@@ -262,6 +262,14 @@ function renderGameState(gs) {
   timerDisplay.classList.toggle('low', ms < 30000);
   scoreDisplay.textContent = `${gs.score || 0} pts`;
 
+  // Goal progress
+  const goalEl = document.getElementById('goalDisplay');
+  if (goalEl && gs.goal) {
+    const filled = (gs.stats && gs.stats.ordersFilled) || 0;
+    goalEl.textContent = `${filled}/${gs.goal} Orders`;
+    goalEl.classList.toggle('close', filled >= gs.goal - 2);
+  }
+
   // Score change SFX
   if (gs.score > lastScore) {
     const diff = gs.score - lastScore;
@@ -332,12 +340,23 @@ socket.on('cooking_state', (gs) => {
   renderGameState(gs);
 });
 
-socket.on('cooking_game_over', ({ score }) => {
-  SFX.gameOver();
+socket.on('cooking_game_over', ({ score, won }) => {
+  if (won) SFX.victory(); else SFX.gameOver();
+  const goEmoji = document.querySelector('.gameover-emoji');
+  const goTitle = document.querySelector('.gameover-title');
+  if (won) {
+    goEmoji.textContent = '🎉';
+    goTitle.textContent = 'You Won!';
+    goTitle.style.color = '#4ecca3';
+  } else {
+    goEmoji.textContent = '⏰';
+    goTitle.textContent = "Time's Up!";
+    goTitle.style.color = '#ff6b6b';
+  }
   finalScore.textContent = score || 0;
   if (gameState && gameState.stats) {
     gameoverStats.innerHTML = `
-      Orders Completed: ${gameState.stats.ordersFilled || 0}<br>
+      Orders Served: ${gameState.stats.ordersFilled || 0}${gameState.goal ? ' / ' + gameState.goal : ''}<br>
       Orders Expired: ${gameState.stats.ordersExpired || 0}<br>
       Tasks Completed: ${gameState.stats.tasksCompleted || 0}
     `;

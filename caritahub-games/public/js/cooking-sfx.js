@@ -146,7 +146,7 @@ const SFX = {
     osc('sine', 1568, t + 0.24, 0.2, 0.2);
   },
 
-  // Game over — dramatic finish
+  // Game over (time ran out) — dramatic descending finish
   gameOver() {
     const t = ctx().currentTime;
     [784, 659, 523, 392].forEach((f, i) => {
@@ -159,6 +159,27 @@ const SFX = {
       osc('sine', 659, t2, 0.5, 0.12);
       osc('sine', 784, t2, 0.5, 0.12);
     }, 700);
+  },
+
+  // Victory! — triumphant ascending fanfare
+  victory() {
+    const t = ctx().currentTime;
+    // Triumphant ascending fanfare
+    [523, 659, 784, 1047, 1319].forEach((f, i) => {
+      osc('triangle', f, t + i * 0.12, 0.3, 0.25);
+      osc('sine', f * 2, t + i * 0.12 + 0.03, 0.15, 0.08);
+    });
+    // Sparkle finish
+    setTimeout(() => {
+      const t2 = ctx().currentTime;
+      osc('sine', 1568, t2, 0.4, 0.15);
+      osc('sine', 2093, t2 + 0.05, 0.35, 0.12);
+      osc('sine', 2637, t2 + 0.1, 0.3, 0.1);
+      // Major chord hold
+      osc('sine', 1047, t2 + 0.15, 0.6, 0.18);
+      osc('sine', 1319, t2 + 0.15, 0.6, 0.15);
+      osc('sine', 1568, t2 + 0.15, 0.6, 0.12);
+    }, 650);
   },
 
   // Player joined lobby — welcome bloop
