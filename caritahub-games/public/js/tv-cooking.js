@@ -21,7 +21,8 @@ const lobbyPlayerList  = document.getElementById('lobbyPlayerList');
 const startBtn         = document.getElementById('startBtn');
 const timerDisplay     = document.getElementById('timerDisplay');
 const scoreDisplay     = document.getElementById('scoreDisplay');
-const tablesList       = document.getElementById('tablesList');
+const tablesLeft       = document.getElementById('tablesLeft');
+const tablesRight      = document.getElementById('tablesRight');
 const chefsBar         = document.getElementById('chefsBar');
 const avatarsContainer = document.getElementById('avatarsContainer');
 const servingWindow    = document.getElementById('servingWindow');
@@ -34,10 +35,10 @@ const htpReadyBtn      = document.getElementById('htpReadyBtn');
 
 // ── Station positions for avatar placement (% of kitchen scene) ──────────
 const STATION_POS = {
-  chop:  { x: 14, y: 60 },
-  stove: { x: 46, y: 60 },
-  plate: { x: 78, y: 60 },
-  idle:  { x: 46, y: 82 },
+  chop:  { x: 18, y: 22 },
+  stove: { x: 72, y: 22 },
+  plate: { x: 45, y: 78 },
+  idle:  { x: 45, y: 50 },
 };
 function avatarPos(station, index, totalAtStation) {
   const base = STATION_POS[station] || STATION_POS.idle;
@@ -197,9 +198,35 @@ function moodEmoji(frac) {
   return '😡';
 }
 
+function renderTableCard(o) {
+  const frac = o.timeLeft / o.maxTime;
+  const urgent = frac < 0.25;
+  const customers = CUSTOMER_GROUPS[o.id % CUSTOMER_GROUPS.length];
+
+  const tasksHtml = o.tasks.map(t => {
+    const icon = TASK_ICONS[t.type] || '?';
+    if (t.status === 'completed') return `<span class="ctask completed">${icon}✓</span>`;
+    else if (t.status === 'claimed') return `<span class="ctask claimed">${icon}</span>`;
+    else return `<span class="ctask available">${icon}</span>`;
+  }).join('');
+
+  return `
+    <div class="ctable${urgent ? ' urgent' : ''}">
+      <div class="ctable-seats">${customers.map(e => `<span>${e}</span>`).join('')}</div>
+      <div class="ctable-top">
+        <span class="ctable-dish">${o.emoji} ${escHtml(o.recipeName)}</span>
+        <span class="ctable-mood">${moodEmoji(frac)}</span>
+      </div>
+      <div class="ctable-timer"><div class="ctable-timer-fill" style="width:${Math.round(frac * 100)}%"></div></div>
+      <div class="ctable-tasks">${tasksHtml}</div>
+    </div>
+  `;
+}
+
 function renderTables(orders) {
   if (!orders || !orders.length) {
-    tablesList.innerHTML = '<div class="table-empty">Waiting for customers…</div>';
+    tablesLeft.innerHTML = '<div class="table-empty">Waiting for customers…</div>';
+    tablesRight.innerHTML = '';
     prevOrderIds = new Set();
     prevOrderCount = 0;
     return;
@@ -209,41 +236,10 @@ function renderTables(orders) {
   prevOrderIds = newIds;
   prevOrderCount = orders.length;
 
-  tablesList.innerHTML = orders.map(o => {
-    const frac = o.timeLeft / o.maxTime;
-    const urgent = frac < 0.25;
-    const customers = CUSTOMER_GROUPS[o.id % CUSTOMER_GROUPS.length];
-    const tableN = (o.id % 4) + 1;
-
-    const tasksHtml = o.tasks.map(t => {
-      const icon = TASK_ICONS[t.type] || '?';
-      if (t.status === 'completed') {
-        return `<div class="dtask completed">${icon} ✓</div>`;
-      } else if (t.status === 'claimed' && t.claimedBy) {
-        const dot = t.claimedColor ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${t.claimedColor};margin-right:2px;vertical-align:middle;"></span>` : '';
-        return `<div class="dtask claimed">${icon} ${dot}${escHtml(t.claimedBy)}</div>`;
-      } else {
-        return `<div class="dtask available">${icon} Open!</div>`;
-      }
-    }).join('');
-
-    return `
-      <div class="diner-table${urgent ? ' urgent' : ''}">
-        <div class="diner-header">
-          <div class="diner-customers">
-            ${customers.map(e => `<span class="customer-emoji">${e}</span>`).join('')}
-            <span class="mood-emoji">${moodEmoji(frac)}</span>
-          </div>
-          <div class="diner-dish">${o.emoji} ${escHtml(o.recipeName)}</div>
-          <div class="diner-pts">+${o.points}pts</div>
-        </div>
-        <div class="diner-timer-bar">
-          <div class="diner-timer-fill" style="width:${Math.round(frac * 100)}%"></div>
-        </div>
-        <div class="diner-tasks">${tasksHtml}</div>
-      </div>
-    `;
-  }).join('');
+  // Split orders: first half left, second half right
+  const mid = Math.ceil(orders.length / 2);
+  tablesLeft.innerHTML  = orders.slice(0, mid).map(o => renderTableCard(o)).join('');
+  tablesRight.innerHTML = orders.slice(mid).map(o => renderTableCard(o)).join('');
 }
 
 // ── Chefs bar ─────────────────────────────────────────────────────────────

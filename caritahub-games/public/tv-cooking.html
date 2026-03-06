@@ -71,34 +71,33 @@
       <span class="hud-score" id="scoreDisplay">0 pts</span>
       <span class="hud-goal" id="goalDisplay">0/8 Orders</span>
     </div>
-    <!-- Main area -->
-    <div class="main-area">
-      <!-- Kitchen scene (animated) -->
+    <!-- Main game area: tables | kitchen | tables -->
+    <div class="game-area">
+      <!-- Left dining tables -->
+      <div class="dining-side" id="tablesLeft"></div>
+      <!-- Center kitchen -->
       <div class="kitchen-scene" id="kitchenScene">
         <div class="kitchen-floor"></div>
-        <!-- Serving window (top) -->
-        <div class="serving-window" id="servingWindow"></div>
-        <!-- Stations (positioned by JS) -->
-        <div class="station station-chop" id="stationChop" style="left:8%;top:30%;">
+        <!-- Stations -->
+        <div class="station station-chop" id="stationChop">
           <div class="station-body">🔪</div>
           <div class="station-label">Chop</div>
         </div>
-        <div class="station station-stove" id="stationStove" style="left:40%;top:30%;">
+        <div class="station station-stove" id="stationStove">
           <div class="station-body">🍳</div>
           <div class="station-label">Stove</div>
         </div>
-        <div class="station station-plate" id="stationPlate" style="left:72%;top:30%;">
+        <div class="station station-plate" id="stationPlate">
           <div class="station-body">🍽️</div>
           <div class="station-label">Plate</div>
         </div>
-        <!-- Avatars injected by JS -->
+        <!-- Serving window -->
+        <div class="serving-window" id="servingWindow"></div>
+        <!-- Avatars -->
         <div id="avatarsContainer"></div>
       </div>
-      <!-- Dining room (right) -->
-      <div class="dining-room">
-        <div class="dining-room-title">🍽️ Dining Room</div>
-        <div class="tables-list" id="tablesList"></div>
-      </div>
+      <!-- Right dining tables -->
+      <div class="dining-side" id="tablesRight"></div>
     </div>
     <!-- Chefs bar (bottom) -->
     <div class="chefs-bar" id="chefsBar"></div>
