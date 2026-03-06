@@ -77,6 +77,72 @@ html, body {
 .start-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .start-btn:active:not(:disabled) { transform: scale(0.97); }
 
+/* ── How to Play phase ────────────────────────────────────────────────────── */
+#howToPlayPhase {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a0a2e 0%, #0d1b3e 50%, #2d1b4e 100%);
+}
+.htp-container {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 30px; padding: 30px; max-width: 1100px; width: 100%;
+}
+.htp-title {
+  font-size: 52px; font-weight: 900;
+  background: linear-gradient(90deg, #ffd700, #ff9f43);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.htp-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 20px; width: 100%;
+}
+.htp-card {
+  background: rgba(255,255,255,0.06);
+  border: 2px solid rgba(255,255,255,0.1);
+  border-radius: 16px; padding: 24px 16px;
+  display: flex; flex-direction: column; align-items: center;
+  gap: 12px; text-align: center;
+  animation: htpCardIn 0.5s ease-out backwards;
+}
+.htp-card:nth-child(1) { animation-delay: 0.1s; }
+.htp-card:nth-child(2) { animation-delay: 0.25s; }
+.htp-card:nth-child(3) { animation-delay: 0.4s; }
+.htp-card:nth-child(4) { animation-delay: 0.55s; }
+@keyframes htpCardIn {
+  from { opacity: 0; transform: translateY(30px) scale(0.9); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.htp-card-icon { font-size: 56px; }
+.htp-card-title { font-size: 22px; font-weight: 800; color: #ffd700; }
+.htp-card-desc { font-size: 15px; color: #bbb; line-height: 1.4; }
+
+.htp-bottom {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.htp-tip {
+  font-size: 20px; color: #ccc; text-align: center;
+}
+.htp-countdown {
+  font-size: 28px; font-weight: 900; color: #ff9f43;
+  font-variant-numeric: tabular-nums;
+}
+.htp-countdown span { font-size: 36px; color: #ffd700; }
+
+.htp-ready-btn {
+  padding: 16px 48px; font-size: 22px; font-weight: 800;
+  background: linear-gradient(90deg, #2ecc71, #27ae60);
+  color: #fff; border: none; border-radius: 14px;
+  cursor: pointer; letter-spacing: 0.04em;
+  transition: transform 0.1s;
+  animation: htpBtnPulse 1.5s ease-in-out infinite;
+}
+.htp-ready-btn:active { transform: scale(0.97); }
+@keyframes htpBtnPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(46,204,113,0.4); }
+  50%      { box-shadow: 0 0 0 12px rgba(46,204,113,0); }
+}
+
 /* ── Playing phase ────────────────────────────────────────────────────────── */
 #playingPhase { flex-direction: column; }
 

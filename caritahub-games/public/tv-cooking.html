@@ -28,6 +28,40 @@
     </div>
   </div>
 
+  <!-- How To Play Phase -->
+  <div id="howToPlayPhase" class="phase">
+    <div class="htp-container">
+      <div class="htp-title">How To Play</div>
+      <div class="htp-grid">
+        <div class="htp-card">
+          <div class="htp-card-icon">📱</div>
+          <div class="htp-card-title">Pick Tasks</div>
+          <div class="htp-card-desc">On your phone, choose a task from the orders shown on TV</div>
+        </div>
+        <div class="htp-card">
+          <div class="htp-card-icon">🔪</div>
+          <div class="htp-card-title">Chop</div>
+          <div class="htp-card-desc">Tap rapidly to chop ingredients!</div>
+        </div>
+        <div class="htp-card">
+          <div class="htp-card-icon">🥄</div>
+          <div class="htp-card-title">Stir</div>
+          <div class="htp-card-desc">Swipe in circles on the stir pad!</div>
+        </div>
+        <div class="htp-card">
+          <div class="htp-card-icon">👆</div>
+          <div class="htp-card-title">Flip</div>
+          <div class="htp-card-desc">Tap when the bar hits the green zone!</div>
+        </div>
+      </div>
+      <div class="htp-bottom">
+        <div class="htp-tip">Complete all tasks in an order to serve it for points!</div>
+        <div class="htp-countdown">Starting in <span id="htpCountdown">10</span>…</div>
+        <button id="htpReadyBtn" class="htp-ready-btn">Ready! Let's Cook!</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Playing Phase -->
   <div id="playingPhase" class="phase">
     <!-- Top HUD -->
@@ -83,6 +117,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="/js/cooking-sfx.js"></script>
   <script src="/js/tv-cooking.js"></script>
 </body>
 </html>

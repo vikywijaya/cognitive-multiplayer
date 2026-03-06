@@ -65,6 +65,58 @@
     .wait-title { font-size: 26px; font-weight: 800; color: #ff9f43; text-align: center; }
     .wait-sub   { font-size: 18px; color: #aaa; text-align: center; padding: 0 24px; }
 
+    /* ── How to play (phone) ── */
+    #htpScreen {
+      align-items: center; justify-content: center; padding: 24px;
+      gap: 16px; overflow-y: auto;
+      background: linear-gradient(135deg, #1a0a2e 0%, #0d1b3e 50%, #2d1b4e 100%);
+    }
+    .htp-phone-title {
+      font-size: 28px; font-weight: 900;
+      color: #ffd700; text-align: center;
+    }
+    .htp-phone-steps {
+      display: flex; flex-direction: column; gap: 12px;
+      width: 100%; max-width: 380px;
+    }
+    .htp-step {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 16px; border-radius: 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      animation: htpStepIn 0.4s ease-out backwards;
+    }
+    .htp-step:nth-child(1) { animation-delay: 0.1s; }
+    .htp-step:nth-child(2) { animation-delay: 0.25s; }
+    .htp-step:nth-child(3) { animation-delay: 0.4s; }
+    .htp-step:nth-child(4) { animation-delay: 0.55s; }
+    @keyframes htpStepIn {
+      from { opacity: 0; transform: translateX(-20px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .htp-step-icon { font-size: 36px; flex-shrink: 0; }
+    .htp-step-body { flex: 1; }
+    .htp-step-title { font-size: 17px; font-weight: 800; color: #ffd700; }
+    .htp-step-desc  { font-size: 13px; color: #bbb; margin-top: 2px; }
+
+    .htp-phone-countdown {
+      font-size: 22px; font-weight: 900; color: #ff9f43;
+      font-variant-numeric: tabular-nums;
+    }
+    .htp-phone-countdown span { font-size: 28px; color: #ffd700; }
+    .htp-phone-ready {
+      width: 100%; max-width: 300px; padding: 16px;
+      font-size: 20px; font-weight: 800;
+      background: linear-gradient(90deg, #2ecc71, #27ae60);
+      color: #fff; border: none; border-radius: 14px; cursor: pointer;
+      animation: htpBtnPulse 1.5s ease-in-out infinite;
+    }
+    .htp-phone-ready:active { transform: scale(0.97); }
+    @keyframes htpBtnPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(46,204,113,0.4); }
+      50%      { box-shadow: 0 0 0 10px rgba(46,204,113,0); }
+    }
+
     /* ── Game screen ── */
     #gameScreen { background: #1a0a2e; overflow-y: auto; }
 
@@ -294,6 +346,43 @@
     <div class="wait-sub" id="waitMsg">Watch the TV and get ready!</div>
   </div>
 
+  <!-- How To Play (phone) -->
+  <div id="htpScreen" class="screen">
+    <div class="htp-phone-title">How To Play</div>
+    <div class="htp-phone-steps">
+      <div class="htp-step">
+        <div class="htp-step-icon">📱</div>
+        <div class="htp-step-body">
+          <div class="htp-step-title">Pick a Task</div>
+          <div class="htp-step-desc">Look at the TV for orders, then tap a task to claim it</div>
+        </div>
+      </div>
+      <div class="htp-step">
+        <div class="htp-step-icon">🔪</div>
+        <div class="htp-step-body">
+          <div class="htp-step-title">Chop</div>
+          <div class="htp-step-desc">Tap the big red button as fast as you can!</div>
+        </div>
+      </div>
+      <div class="htp-step">
+        <div class="htp-step-icon">🥄</div>
+        <div class="htp-step-body">
+          <div class="htp-step-title">Stir</div>
+          <div class="htp-step-desc">Swipe your finger in circles on the blue pad</div>
+        </div>
+      </div>
+      <div class="htp-step">
+        <div class="htp-step-icon">👆</div>
+        <div class="htp-step-body">
+          <div class="htp-step-title">Flip</div>
+          <div class="htp-step-desc">Tap FLIP when the moving bar is in the green zone</div>
+        </div>
+      </div>
+    </div>
+    <div class="htp-phone-countdown">Starting in <span id="phoneHtpCountdown">10</span>…</div>
+    <button id="phoneReadyBtn" class="htp-phone-ready">I'm Ready!</button>
+  </div>
+
   <!-- Game screen -->
   <div id="gameScreen" class="screen">
     <div class="game-header">
@@ -317,6 +406,7 @@
   <div id="reconnectOverlay" class="reconnect hidden">Reconnecting…</div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/cooking-sfx.js"></script>
   <script>
   'use strict';
   const socket = io({ transports: ['websocket', 'polling'] });
@@ -324,8 +414,11 @@
   // ── DOM ────────────────────────────────────────────────────────────────
   const joinScreen     = document.getElementById('joinScreen');
   const waitScreen     = document.getElementById('waitScreen');
+  const htpScreen      = document.getElementById('htpScreen');
   const gameScreen     = document.getElementById('gameScreen');
   const gameoverScreen = document.getElementById('gameoverScreen');
+  const phoneHtpCountdown = document.getElementById('phoneHtpCountdown');
+  const phoneReadyBtn  = document.getElementById('phoneReadyBtn');
   const roomInput      = document.getElementById('roomInput');
   const nameInput      = document.getElementById('nameInput');
   const joinBtn        = document.getElementById('joinBtn');
@@ -343,6 +436,8 @@
   let currentView = 'choose'; // 'choose' or 'minigame'
   let currentTaskId = null;
   let flipAnimFrame = null;
+  let phoneHtpTimer = null;
+  let pendingPlayerState = null;
 
   // Pre-fill room code from URL
   const params = new URLSearchParams(location.search);
@@ -351,9 +446,35 @@
 
   // ── Helpers ────────────────────────────────────────────────────────────
   function showScreen(id) {
-    [joinScreen, waitScreen, gameScreen, gameoverScreen].forEach(s => s.classList.remove('active'));
+    [joinScreen, waitScreen, htpScreen, gameScreen, gameoverScreen].forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
   }
+
+  // ── How To Play (phone) ────────────────────────────────────────────────
+  function startPhoneHowToPlay() {
+    showScreen('htpScreen');
+    let remaining = 10;
+    phoneHtpCountdown.textContent = remaining;
+    phoneHtpTimer = setInterval(() => {
+      remaining--;
+      phoneHtpCountdown.textContent = remaining;
+      if (remaining <= 3 && remaining > 0) SFX.tick();
+      if (remaining <= 0) endPhoneHowToPlay();
+    }, 1000);
+  }
+  function endPhoneHowToPlay() {
+    if (phoneHtpTimer) { clearInterval(phoneHtpTimer); phoneHtpTimer = null; }
+    SFX.go();
+    showScreen('gameScreen');
+    if (pendingPlayerState) {
+      renderPlayerState(pendingPlayerState);
+      pendingPlayerState = null;
+    }
+  }
+  phoneReadyBtn.addEventListener('click', () => {
+    SFX.click();
+    endPhoneHowToPlay();
+  });
   function formatTime(ms) {
     const s = Math.ceil(ms / 1000);
     return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
@@ -369,6 +490,7 @@
     setTimeout(() => el.remove(), 2200);
   }
   function showTaskComplete() {
+    SFX.taskComplete();
     const ol = document.createElement('div');
     ol.className = 'task-done-overlay';
     ol.innerHTML = '<div class="task-done-star">⭐</div><div class="task-done-text">Good Job!</div>';
@@ -472,6 +594,7 @@
     gameBody.querySelectorAll('.task-card').forEach(card => {
       card.addEventListener('click', () => {
         const taskId = parseInt(card.dataset.taskId, 10);
+        SFX.taskClaimed();
         socket.emit('cooking_claim_task', { taskId });
       });
     });
@@ -505,8 +628,8 @@
       </div>
     `;
     const btn = document.getElementById('chopBtn');
-    btn.addEventListener('touchstart', e => { e.preventDefault(); socket.emit('cooking_tap'); }, { passive: false });
-    btn.addEventListener('click', () => socket.emit('cooking_tap'));
+    btn.addEventListener('touchstart', e => { e.preventDefault(); SFX.chop(); socket.emit('cooking_tap'); }, { passive: false });
+    btn.addEventListener('click', () => { SFX.chop(); socket.emit('cooking_tap'); });
   }
 
   function updateChoppingProgress(task) {
@@ -565,6 +688,7 @@
         stirAccum += Math.abs(delta);
         if (stirAccum >= Math.PI * 2) {
           stirAccum -= Math.PI * 2;
+          SFX.stir();
           socket.emit('cooking_stir', { circles: 1 });
         }
       }
@@ -627,7 +751,7 @@
     flipAnimFrame = requestAnimationFrame(animate);
   }
   function cancelFlipAnim() { if (flipAnimFrame) { cancelAnimationFrame(flipAnimFrame); flipAnimFrame = null; } }
-  function doFlip() { socket.emit('cooking_flip', { timing: flipPos }); }
+  function doFlip() { SFX.flipSwoosh(); socket.emit('cooking_flip', { timing: flipPos }); }
 
   // ── Update progress without full re-render ─────────────────────────────
 
@@ -663,9 +787,9 @@
     gameActive = true;
     currentView = 'choose';
     currentTaskId = null;
-    showScreen('gameScreen');
     ghTimer.textContent = formatTime(gs.timeLeftMs || 0);
-    // Wait for first player_state
+    // Show how-to-play first
+    startPhoneHowToPlay();
   });
 
   socket.on('cooking_state', (gs) => {
@@ -681,6 +805,11 @@
       gameActive = true;
       showScreen('gameScreen');
     }
+    // Buffer state if still in how-to-play
+    if (htpScreen.classList.contains('active')) {
+      pendingPlayerState = ps;
+      return;
+    }
     renderPlayerState(ps);
   });
 
@@ -688,16 +817,20 @@
     const el = document.getElementById('flipResult');
     if (!el) return;
     if (result === 'perfect' || result === 'task_completed') {
+      SFX.flipPerfect();
       el.className = 'flip-result perfect'; el.textContent = 'Perfect!';
     } else {
+      SFX.flipMiss();
       el.className = 'flip-result miss'; el.textContent = 'Miss! Try again!';
     }
     setTimeout(() => { if (el) el.textContent = ''; }, 1200);
   });
 
   socket.on('cooking_game_over', ({ score }) => {
+    SFX.gameOver();
     gameActive = false;
     cancelFlipAnim();
+    if (phoneHtpTimer) { clearInterval(phoneHtpTimer); phoneHtpTimer = null; }
     currentView = 'choose'; currentTaskId = null;
     goScore.textContent = score || 0;
     showScreen('gameoverScreen');

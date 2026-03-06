@@ -1,6 +1,7 @@
 'use strict';
 /* ── CaritaHub TV Cooking — host (Smart TV) client ─────────────────────── */
 /* Shows animated Overcooked-style kitchen + order tickets panel            */
+/* Includes how-to-play intro screen + SFX via cooking-sfx.js              */
 
 const socket = io({ transports: ['websocket', 'polling'] });
 
@@ -8,9 +9,12 @@ const socket = io({ transports: ['websocket', 'polling'] });
 let roomId = null;
 let gameState = null;
 let lastScore = 0;
+let pendingGameState = null; // buffered state during how-to-play
+let htpTimer = null;
 
 // ── DOM ───────────────────────────────────────────────────────────────────
 const lobbyPhase       = document.getElementById('lobbyPhase');
+const howToPlayPhase   = document.getElementById('howToPlayPhase');
 const playingPhase     = document.getElementById('playingPhase');
 const gameoverPhase    = document.getElementById('gameoverPhase');
 const lobbyPlayerList  = document.getElementById('lobbyPlayerList');
@@ -25,6 +29,8 @@ const finalScore       = document.getElementById('finalScore');
 const gameoverStats    = document.getElementById('gameoverStats');
 const playAgainBtn     = document.getElementById('playAgainBtn');
 const reconnectOverlay = document.getElementById('reconnectOverlay');
+const htpCountdown     = document.getElementById('htpCountdown');
+const htpReadyBtn      = document.getElementById('htpReadyBtn');
 
 // ── Station positions for avatar placement (% of kitchen scene) ──────────
 const STATION_POS = {
@@ -33,17 +39,16 @@ const STATION_POS = {
   plate: { x: 78, y: 60 },
   idle:  { x: 46, y: 82 },
 };
-// Offset avatars at same station so they don't overlap
 function avatarPos(station, index, totalAtStation) {
   const base = STATION_POS[station] || STATION_POS.idle;
-  const spread = 8; // % spread per player
+  const spread = 8;
   const offset = (index - (totalAtStation - 1) / 2) * spread;
   return { x: base.x + offset, y: base.y };
 }
 
 // ── Phase helpers ─────────────────────────────────────────────────────────
 function showPhase(id) {
-  [lobbyPhase, playingPhase, gameoverPhase].forEach(el => el.classList.remove('active'));
+  [lobbyPhase, howToPlayPhase, playingPhase, gameoverPhase].forEach(el => el.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
 
@@ -72,6 +77,37 @@ function spawnServedItem(emoji) {
   setTimeout(() => el.remove(), 1600);
 }
 
+// ── How To Play countdown ─────────────────────────────────────────────────
+function startHowToPlay(gs) {
+  pendingGameState = gs;
+  showPhase('howToPlayPhase');
+  let remaining = 10;
+  htpCountdown.textContent = remaining;
+
+  htpTimer = setInterval(() => {
+    remaining--;
+    htpCountdown.textContent = remaining;
+    if (remaining <= 3 && remaining > 0) SFX.tick();
+    if (remaining <= 0) {
+      endHowToPlay();
+    }
+  }, 1000);
+}
+
+function endHowToPlay() {
+  if (htpTimer) { clearInterval(htpTimer); htpTimer = null; }
+  SFX.go();
+  const gs = pendingGameState || gameState;
+  pendingGameState = null;
+  showPhase('playingPhase');
+  if (gs) renderGameState(gs);
+}
+
+htpReadyBtn.addEventListener('click', () => {
+  SFX.click();
+  endHowToPlay();
+});
+
 // ── Lobby rendering ───────────────────────────────────────────────────────
 function buildJoinUrl(rid) {
   return `${location.protocol}//${location.host}/tv-cooking-play?room=${rid}`;
@@ -96,14 +132,12 @@ function renderLobbyPlayers(players) {
 // ── Kitchen avatar rendering ──────────────────────────────────────────────
 function renderAvatars(players) {
   if (!players) return;
-  // Group by station for offset calculation
   const stationGroups = {};
   for (const p of players) {
     const s = p.station || 'idle';
     if (!stationGroups[s]) stationGroups[s] = [];
     stationGroups[s].push(p);
   }
-
   let html = '';
   for (const p of players) {
     const s = p.station || 'idle';
@@ -111,7 +145,6 @@ function renderAvatars(players) {
     const idx = group.indexOf(p);
     const pos = avatarPos(s, idx, group.length);
     const busyClass = p.busy ? ' busy' : '';
-
     html += `
       <div class="avatar${busyClass}" style="left:${pos.x}%;top:${pos.y}%;" data-player="${escHtml(p.name)}">
         <div class="avatar-emoji">${p.emoji || '🧑‍🍳'}</div>
@@ -143,28 +176,37 @@ function updateStationActivity(players) {
   });
 }
 
-// ── Orders panel rendering ────────────────────────────────────────────────
+// ── Orders panel rendering + SFX triggers ─────────────────────────────────
 let prevOrderIds = new Set();
+let prevOrderCount = 0;
 
 function renderOrders(orders) {
   if (!orders || !orders.length) {
     ordersList.innerHTML = '<div class="order-empty-slot">Waiting for orders…</div>';
+    prevOrderIds = new Set();
+    prevOrderCount = 0;
     return;
   }
   const newIds = new Set(orders.map(o => o.id));
 
-  // Check for completed orders (disappeared)
+  // Detect new orders
+  if (orders.length > prevOrderCount && prevOrderCount > 0) {
+    SFX.newOrder();
+  }
+
+  // Detect disappeared orders (completed or expired)
   for (const oldId of prevOrderIds) {
     if (!newIds.has(oldId)) {
-      // An order was completed or expired
+      // Could be served or expired — score pop handles served, expired handled below
     }
   }
+
   prevOrderIds = newIds;
+  prevOrderCount = orders.length;
 
   ordersList.innerHTML = orders.map(o => {
     const frac = o.timeLeft / o.maxTime;
     const urgent = frac < 0.3;
-
     const tasksHtml = o.tasks.map(t => {
       let rightHtml = '';
       if (t.status === 'completed') {
@@ -212,17 +254,30 @@ function renderChefsBar(players) {
 }
 
 // ── Full state render ─────────────────────────────────────────────────────
+let prevScore = 0;
+
 function renderGameState(gs) {
   const ms = gs.timeLeftMs || 0;
   timerDisplay.textContent = formatTime(ms);
   timerDisplay.classList.toggle('low', ms < 30000);
   scoreDisplay.textContent = `${gs.score || 0} pts`;
 
+  // Score change SFX
   if (gs.score > lastScore) {
     const diff = gs.score - lastScore;
     spawnScorePop(`+${diff}`);
+    // If it's a big jump (order completed = 90-120 pts), play order served
+    if (diff >= 50) {
+      SFX.orderServed();
+      // Find the recipe emoji for the served animation
+      spawnServedItem('✅');
+    }
     lastScore = gs.score;
+  } else if (gs.score < prevScore) {
+    // Score decreased = order expired
+    SFX.orderExpired();
   }
+  prevScore = gs.score;
 
   renderAvatars(gs.players);
   updateStationActivity(gs.players);
@@ -251,23 +306,34 @@ socket.on('joined', ({ roomId: rid }) => {
 
 socket.on('room_update', ({ players }) => {
   if (gameState) return;
+  // SFX for new player joining
+  const cooks = players.filter(p => p.color !== 'tv-host');
+  if (cooks.length > 0) SFX.playerJoined();
   renderLobbyPlayers(players);
 });
 
 socket.on('cooking_started', (gs) => {
   gameState = gs;
   lastScore = gs.score || 0;
+  prevScore = gs.score || 0;
   prevOrderIds = new Set((gs.orders || []).map(o => o.id));
-  showPhase('playingPhase');
-  renderGameState(gs);
+  prevOrderCount = (gs.orders || []).length;
+  // Show how-to-play first
+  startHowToPlay(gs);
 });
 
 socket.on('cooking_state', (gs) => {
   gameState = gs;
+  // If still in how-to-play, just buffer the latest state
+  if (howToPlayPhase.classList.contains('active')) {
+    pendingGameState = gs;
+    return;
+  }
   renderGameState(gs);
 });
 
 socket.on('cooking_game_over', ({ score }) => {
+  SFX.gameOver();
   finalScore.textContent = score || 0;
   if (gameState && gameState.stats) {
     gameoverStats.innerHTML = `
@@ -281,12 +347,19 @@ socket.on('cooking_game_over', ({ score }) => {
 });
 
 socket.on('play_again', () => {
-  gameState = null; lastScore = 0; prevOrderIds = new Set();
+  gameState = null; lastScore = 0; prevScore = 0;
+  prevOrderIds = new Set(); prevOrderCount = 0;
   showPhase('lobbyPhase');
 });
 
 socket.on('error', ({ message }) => console.warn('Server error:', message));
 
 // ── UI controls ───────────────────────────────────────────────────────────
-startBtn.addEventListener('click', () => socket.emit('start_game'));
-playAgainBtn.addEventListener('click', () => socket.emit('play_again'));
+startBtn.addEventListener('click', () => {
+  SFX.click();
+  socket.emit('start_game');
+});
+playAgainBtn.addEventListener('click', () => {
+  SFX.click();
+  socket.emit('play_again');
+});
