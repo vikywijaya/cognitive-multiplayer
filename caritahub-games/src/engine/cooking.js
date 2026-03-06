@@ -1,79 +1,80 @@
 'use strict';
 
 /**
- * Multiplayer Cooking Game Engine — Task-Based
+ * Multiplayer Cooking Game Engine — Task-Based (Overcooked-style)
  *
- * TV = Master Display showing 4 active orders + task assignments.
- * Phones = Personal Workstations receiving specific mini-game tasks.
+ * TV = Master Display showing animated kitchen + 4 active orders.
+ * Phones = Personal Workstations where players CHOOSE which task to work on.
+ *
+ * Key design:
+ *   - All tasks in an order are available simultaneously (parallel work)
+ *   - Players on their phone see available tasks and PICK one to claim
+ *   - Each claimed task becomes a mini-game (chop/stir/flip)
+ *   - TV shows character avatars moving to kitchen stations
  *
  * Task types:
- *   chopping  — rapid tap (target: 20 taps)
- *   stirring  — circular swipe (target: 8 circles)
- *   flipping  — timed QTE (tap when bar is in green zone)
+ *   chopping  — rapid tap (target taps)
+ *   stirring  — circular swipe (target circles)
+ *   flipping  — timed QTE (tap when bar is green)
  *
- * Orders are multi-step recipes composed of tasks assigned to specific players.
- *
- * Recipes:
+ * Recipes (each has 3 parallel tasks):
  *   Burger   = Chop Onions + Grill Patty + Assemble          → 100pts
  *   Sushi    = Chop Fish   + Prepare Rice + Roll              → 120pts
  *   Pasta    = Chop Veggies + Stir Sauce + Plate              → 110pts
- *   Pancake  = Stir Batter  + Flip Pancake + Plate            → 90pts
- *
- * Gameplay loop:
- *   1. Orders appear on TV with assigned tasks per player
- *   2. Phone receives a specific task with a mini-game
- *   3. Player completes mini-game → task done
- *   4. When all tasks for an order are done → order served → points
- *   5. If order timer expires → penalty
+ *   Pancake  = Stir Batter + Flip Pancake + Plate             → 90pts
  */
 
 const GAME_DURATION_MS = 180_000; // 3 minutes
-const ORDER_INTERVAL_MS = 15_000; // new order every 15s
+const ORDER_INTERVAL_MS = 12_000; // new order every 12s
 const ORDER_LIFETIME_MS = 60_000; // each order lasts 60s
 const MAX_ORDERS = 4;
 const MAX_PLAYERS = 4;
 const SCORE_PENALTY = 30;
-const TASK_TIMEOUT_MS = 20_000; // individual task timeout
+
+// ── Kitchen stations (for TV visualization) ─────────────────────────────────
+
+const STATIONS = {
+  chop:  { x: 1, y: 0, label: 'Chopping Board', emoji: '🔪' },
+  stove: { x: 3, y: 0, label: 'Stove',          emoji: '🍳' },
+  plate: { x: 5, y: 0, label: 'Plating',        emoji: '🍽️' },
+  idle:  { x: 3, y: 2, label: 'Waiting Area',    emoji: '🧑‍🍳' },
+};
+
+// Map task types to stations
+const TASK_STATION = {
+  chopping: 'chop',
+  stirring: 'stove',
+  flipping: 'plate',
+};
 
 // ── Task definitions ────────────────────────────────────────────────────────
 
 const TASK_TYPES = {
-  chop_onions:    { type: 'chopping', label: 'Chop Onions',   emoji: '🧅', targetTaps: 20, timeMs: 12_000 },
-  chop_fish:      { type: 'chopping', label: 'Chop Fish',     emoji: '🐟', targetTaps: 15, timeMs: 10_000 },
-  chop_veggies:   { type: 'chopping', label: 'Chop Veggies',  emoji: '🥦', targetTaps: 18, timeMs: 11_000 },
-  grill_patty:    { type: 'flipping', label: 'Grill Patty',   emoji: '🥩', timeMs: 8_000 },
-  prepare_rice:   { type: 'stirring', label: 'Prepare Rice',  emoji: '🍚', targetCircles: 8, timeMs: 10_000 },
-  stir_sauce:     { type: 'stirring', label: 'Stir Sauce',    emoji: '🍅', targetCircles: 10, timeMs: 12_000 },
-  stir_batter:    { type: 'stirring', label: 'Stir Batter',   emoji: '🥣', targetCircles: 8, timeMs: 10_000 },
-  flip_pancake:   { type: 'flipping', label: 'Flip Pancake',  emoji: '🥞', timeMs: 6_000 },
-  roll_sushi:     { type: 'flipping', label: 'Roll Sushi',    emoji: '🍣', timeMs: 8_000 },
-  assemble:       { type: 'flipping', label: 'Assemble Burger', emoji: '🍔', timeMs: 7_000 },
-  plate_pasta:    { type: 'flipping', label: 'Plate Pasta',   emoji: '🍝', timeMs: 6_000 },
-  plate_pancake:  { type: 'flipping', label: 'Plate Pancake', emoji: '🥞', timeMs: 6_000 },
+  chop_onions:    { type: 'chopping', label: 'Chop Onions',     emoji: '🧅', targetTaps: 15, station: 'chop' },
+  chop_fish:      { type: 'chopping', label: 'Chop Fish',       emoji: '🐟', targetTaps: 12, station: 'chop' },
+  chop_veggies:   { type: 'chopping', label: 'Chop Veggies',    emoji: '🥦', targetTaps: 14, station: 'chop' },
+  grill_patty:    { type: 'flipping', label: 'Grill Patty',     emoji: '🥩', station: 'stove' },
+  prepare_rice:   { type: 'stirring', label: 'Prepare Rice',    emoji: '🍚', targetCircles: 6, station: 'stove' },
+  stir_sauce:     { type: 'stirring', label: 'Stir Sauce',      emoji: '🍅', targetCircles: 8, station: 'stove' },
+  stir_batter:    { type: 'stirring', label: 'Stir Batter',     emoji: '🥣', targetCircles: 6, station: 'stove' },
+  flip_pancake:   { type: 'flipping', label: 'Flip Pancake',    emoji: '🥞', station: 'plate' },
+  roll_sushi:     { type: 'flipping', label: 'Roll Sushi',      emoji: '🍣', station: 'plate' },
+  assemble:       { type: 'flipping', label: 'Assemble Burger', emoji: '🍔', station: 'plate' },
+  plate_pasta:    { type: 'flipping', label: 'Plate Pasta',     emoji: '🍝', station: 'plate' },
+  plate_pancake:  { type: 'flipping', label: 'Plate Pancake',   emoji: '🥞', station: 'plate' },
 };
 
 // ── Recipes ─────────────────────────────────────────────────────────────────
 
 const RECIPES = [
-  {
-    name: 'Burger', emoji: '🍔', points: 100,
-    steps: ['chop_onions', 'grill_patty', 'assemble'],
-  },
-  {
-    name: 'Sushi', emoji: '🍣', points: 120,
-    steps: ['chop_fish', 'prepare_rice', 'roll_sushi'],
-  },
-  {
-    name: 'Pasta', emoji: '🍝', points: 110,
-    steps: ['chop_veggies', 'stir_sauce', 'plate_pasta'],
-  },
-  {
-    name: 'Pancake', emoji: '🥞', points: 90,
-    steps: ['stir_batter', 'flip_pancake', 'plate_pancake'],
-  },
+  { name: 'Burger',  emoji: '🍔', points: 100, steps: ['chop_onions',  'grill_patty',   'assemble'] },
+  { name: 'Sushi',   emoji: '🍣', points: 120, steps: ['chop_fish',    'prepare_rice',  'roll_sushi'] },
+  { name: 'Pasta',   emoji: '🍝', points: 110, steps: ['chop_veggies', 'stir_sauce',    'plate_pasta'] },
+  { name: 'Pancake', emoji: '🥞', points: 90,  steps: ['stir_batter',  'flip_pancake',  'plate_pancake'] },
 ];
 
 const PLAYER_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12'];
+const PLAYER_EMOJIS = ['👩‍🍳', '👨‍🍳', '🧑‍🍳', '👩‍🍳'];
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -85,7 +86,7 @@ function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 // ── Engine factory ──────────────────────────────────────────────────────────
 
 function createGame() {
-  const players = [];      // { id, name, color, score, currentTask }
+  const players = [];      // { id, name, color, emoji, score, claimedTaskId, station }
   const orders  = [];      // active orders
   let teamScore   = 0;
   let timeLeftMs  = GAME_DURATION_MS;
@@ -96,15 +97,19 @@ function createGame() {
   let ordersFilled   = 0;
   let ordersExpired  = 0;
 
-  // Note: initial orders are spawned on first tick (after players are added)
-
   // ── Player management ───────────────────────────────────────────────────
 
   function addPlayer(id, name) {
     if (players.length >= MAX_PLAYERS) return null;
     const idx = players.length;
-    const color = PLAYER_COLORS[idx];
-    const player = { id, name, color, score: 0, currentTask: null };
+    const player = {
+      id, name,
+      color: PLAYER_COLORS[idx],
+      emoji: PLAYER_EMOJIS[idx],
+      score: 0,
+      claimedTaskId: null,
+      station: 'idle',        // current station for TV visualization
+    };
     players.push(player);
     return player;
   }
@@ -112,124 +117,68 @@ function createGame() {
   function removePlayer(id) {
     const idx = players.findIndex(p => p.id === id);
     if (idx !== -1) {
-      // Unassign any tasks belonging to this player
       const player = players[idx];
-      for (const order of orders) {
-        for (const task of order.tasks) {
-          if (task.assignedTo === player.name && task.status === 'active') {
-            task.status = 'pending';
-            task.assignedTo = null;
-          }
-        }
-      }
+      // Release any claimed task
+      _releasePlayerTask(player);
       players.splice(idx, 1);
     }
   }
 
   function getPlayer(id) { return players.find(p => p.id === id) || null; }
 
-  // ── Order & Task management ─────────────────────────────────────────────
+  // ── Task claiming ─────────────────────────────────────────────────────────
+  // Players CHOOSE which task to work on from their phone
 
-  function _spawnOrder() {
-    if (orders.length >= MAX_ORDERS || players.length === 0) return;
-    const recipe = pickRandom(RECIPES);
-    const orderId = ++_orderIdSeq;
-
-    // Create tasks from recipe steps and assign to players round-robin
-    const tasks = recipe.steps.map((stepKey, i) => {
-      const taskDef = TASK_TYPES[stepKey];
-      // Assign tasks to different players (round-robin across available players)
-      const assignee = players.length > 0 ? players[i % players.length] : null;
-      return {
-        id: ++_taskIdSeq,
-        taskKey: stepKey,
-        type: taskDef.type,
-        label: taskDef.label,
-        emoji: taskDef.emoji,
-        targetTaps: taskDef.targetTaps || 0,
-        targetCircles: taskDef.targetCircles || 0,
-        timeMs: taskDef.timeMs,
-        assignedTo: assignee ? assignee.name : null,
-        assignedColor: assignee ? assignee.color : null,
-        status: 'pending', // pending → active → completed | failed
-        progress: 0,       // taps or circles completed
-        startedAt: null,
-        // For flipping QTE
-        qteWindowStart: null,
-        qteWindowEnd: null,
-        qteResult: null,
-      };
-    });
-
-    // First task starts as active
-    if (tasks.length > 0) {
-      tasks[0].status = 'active';
-    }
-
-    orders.push({
-      id: orderId,
-      recipeName: recipe.name,
-      emoji: recipe.emoji,
-      points: recipe.points,
-      tasks,
-      timeLeft: ORDER_LIFETIME_MS,
-      maxTime: ORDER_LIFETIME_MS,
-      status: 'active', // active → completed | expired
-    });
-  }
-
-  // Check if order's current active task is done and advance
-  function _advanceOrder(order) {
-    const currentIdx = order.tasks.findIndex(t => t.status === 'active');
-    if (currentIdx === -1) return;
-
-    const current = order.tasks[currentIdx];
-    if (current.status !== 'completed') return;
-
-    // Move to next task
-    const nextIdx = currentIdx + 1;
-    if (nextIdx < order.tasks.length) {
-      order.tasks[nextIdx].status = 'active';
-    } else {
-      // All tasks done — order complete!
-      order.status = 'completed';
-      teamScore += order.points;
-      ordersFilled++;
-    }
-  }
-
-  // Assign waiting tasks when players become free
-  function _reassignTasks() {
-    for (const order of orders) {
-      if (order.status !== 'active') continue;
-      for (const task of order.tasks) {
-        if (task.status !== 'active') continue;
-        if (task.assignedTo) {
-          // Check if assigned player still exists
-          const p = players.find(pl => pl.name === task.assignedTo);
-          if (!p) {
-            // Re-assign to someone free
-            const free = players.find(pl => !pl.currentTask);
-            if (free) {
-              task.assignedTo = free.name;
-              task.assignedColor = free.color;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // ── Player actions (mini-game inputs) ───────────────────────────────────
-
-  // Called when player taps (for chopping)
-  function tapAction(playerId) {
+  function claimTask(playerId, taskId) {
     const player = getPlayer(playerId);
     if (!player || over) return { ok: false, reason: 'Not active' };
 
-    const task = _getActiveTaskForPlayer(player.name);
-    if (!task) return { ok: false, reason: 'No active task' };
-    if (task.type !== 'chopping') return { ok: false, reason: 'Wrong action for this task' };
+    // Can't claim if already working on something
+    if (player.claimedTaskId) return { ok: false, reason: 'Already working on a task! Finish it first.' };
+
+    // Find the task
+    const { task, order } = _findTask(taskId);
+    if (!task) return { ok: false, reason: 'Task not found' };
+    if (task.status !== 'available') return { ok: false, reason: 'Task already taken' };
+
+    // Claim it
+    task.status = 'claimed';
+    task.claimedBy = player.name;
+    task.claimedColor = player.color;
+    task.progress = 0;
+    player.claimedTaskId = task.id;
+    player.station = task.station;
+
+    return {
+      ok: true, action: 'task_claimed',
+      task: _taskSnapshot(task),
+      orderId: order.id,
+      orderName: order.recipeName,
+    };
+  }
+
+  // Release a player's current task (e.g. disconnect or cancel)
+  function _releasePlayerTask(player) {
+    if (!player.claimedTaskId) return;
+    const { task } = _findTask(player.claimedTaskId);
+    if (task && task.status === 'claimed') {
+      task.status = 'available';
+      task.claimedBy = null;
+      task.claimedColor = null;
+      task.progress = 0;
+    }
+    player.claimedTaskId = null;
+    player.station = 'idle';
+  }
+
+  // ── Player actions (mini-game inputs) ─────────────────────────────────────
+
+  function tapAction(playerId) {
+    const player = getPlayer(playerId);
+    if (!player || over) return { ok: false, reason: 'Not active' };
+    const task = _getClaimedTask(player);
+    if (!task) return { ok: false, reason: 'No claimed task' };
+    if (task.type !== 'chopping') return { ok: false, reason: 'This task needs chopping, not tapping!' };
 
     task.progress++;
     if (task.progress >= task.targetTaps) {
@@ -239,14 +188,12 @@ function createGame() {
     return { ok: true, action: 'tap_registered', progress: task.progress, target: task.targetTaps };
   }
 
-  // Called for stirring progress (circular motion)
   function stirAction(playerId, circles) {
     const player = getPlayer(playerId);
     if (!player || over) return { ok: false, reason: 'Not active' };
-
-    const task = _getActiveTaskForPlayer(player.name);
-    if (!task) return { ok: false, reason: 'No active task' };
-    if (task.type !== 'stirring') return { ok: false, reason: 'Wrong action for this task' };
+    const task = _getClaimedTask(player);
+    if (!task) return { ok: false, reason: 'No claimed task' };
+    if (task.type !== 'stirring') return { ok: false, reason: 'This task needs stirring!' };
 
     task.progress = Math.min(task.targetCircles, task.progress + (circles || 1));
     if (task.progress >= task.targetCircles) {
@@ -256,63 +203,105 @@ function createGame() {
     return { ok: true, action: 'stir_registered', progress: task.progress, target: task.targetCircles };
   }
 
-  // Called for flipping QTE (player taps at the right moment)
   function flipAction(playerId, timing) {
     const player = getPlayer(playerId);
     if (!player || over) return { ok: false, reason: 'Not active' };
+    const task = _getClaimedTask(player);
+    if (!task) return { ok: false, reason: 'No claimed task' };
+    if (task.type !== 'flipping') return { ok: false, reason: 'This task needs flipping!' };
 
-    const task = _getActiveTaskForPlayer(player.name);
-    if (!task) return { ok: false, reason: 'No active task' };
-    if (task.type !== 'flipping') return { ok: false, reason: 'Wrong action for this task' };
-
-    // timing is a value 0-1 representing where the bar was when tapped
-    // Green zone is 0.4 - 0.6
+    // Green zone is 0.35 - 0.65
     const inGreen = timing >= 0.35 && timing <= 0.65;
     if (inGreen) {
       _completeTask(task, player);
       return { ok: true, action: 'task_completed', result: 'perfect', taskId: task.id };
     } else {
-      // Failed flip — player can retry
-      task.progress = 0; // reset
       return { ok: true, action: 'flip_missed', result: 'miss' };
     }
   }
 
-  function _getActiveTaskForPlayer(playerName) {
+  function _getClaimedTask(player) {
+    if (!player.claimedTaskId) return null;
+    const { task } = _findTask(player.claimedTaskId);
+    return (task && task.status === 'claimed') ? task : null;
+  }
+
+  function _findTask(taskId) {
     for (const order of orders) {
-      if (order.status !== 'active') continue;
       for (const task of order.tasks) {
-        if (task.status === 'active' && task.assignedTo === playerName) {
-          return task;
-        }
+        if (task.id === taskId) return { task, order };
       }
     }
-    return null;
+    return { task: null, order: null };
   }
 
   function _completeTask(task, player) {
     task.status = 'completed';
     tasksCompleted++;
-    player.score += 10; // bonus per task
+    player.score += 10;
+    player.claimedTaskId = null;
+    player.station = 'idle';
 
-    // Find the order this task belongs to and advance
+    // Check if all tasks in the order are done
     for (const order of orders) {
-      const idx = order.tasks.findIndex(t => t.id === task.id);
-      if (idx !== -1) {
-        _advanceOrder(order);
+      if (order.tasks.some(t => t.id === task.id)) {
+        const allDone = order.tasks.every(t => t.status === 'completed');
+        if (allDone) {
+          order.status = 'completed';
+          teamScore += order.points;
+          ordersFilled++;
+        }
         break;
       }
     }
   }
 
-  // ── Game tick (call every ~200ms) ───────────────────────────────────────
+  // ── Order management ──────────────────────────────────────────────────────
+
+  function _spawnOrder() {
+    if (orders.length >= MAX_ORDERS || players.length === 0) return;
+    const recipe = pickRandom(RECIPES);
+    const orderId = ++_orderIdSeq;
+
+    // ALL tasks start as 'available' — players choose which to claim
+    const tasks = recipe.steps.map((stepKey) => {
+      const taskDef = TASK_TYPES[stepKey];
+      return {
+        id: ++_taskIdSeq,
+        taskKey: stepKey,
+        type: taskDef.type,
+        label: taskDef.label,
+        emoji: taskDef.emoji,
+        station: taskDef.station,
+        targetTaps: taskDef.targetTaps || 0,
+        targetCircles: taskDef.targetCircles || 0,
+        status: 'available', // available → claimed → completed
+        claimedBy: null,
+        claimedColor: null,
+        progress: 0,
+      };
+    });
+
+    orders.push({
+      id: orderId,
+      recipeName: recipe.name,
+      emoji: recipe.emoji,
+      points: recipe.points,
+      tasks,
+      timeLeft: ORDER_LIFETIME_MS,
+      maxTime: ORDER_LIFETIME_MS,
+      status: 'active',
+    });
+  }
+
+  // ── Game tick (call every ~200ms) ─────────────────────────────────────────
 
   function tick() {
     if (over) return;
     const now = Date.now();
     if (lastTickAt === null) {
       lastTickAt = now;
-      // Spawn initial orders now that players are registered
+      // Spawn initial orders
       while (orders.length < 2 && players.length > 0) _spawnOrder();
       return;
     }
@@ -330,13 +319,20 @@ function createGame() {
       order.timeLeft -= dt;
       if (order.timeLeft <= 0) {
         order.status = 'expired';
+        // Release any claimed tasks for this order
+        for (const task of order.tasks) {
+          if (task.claimedBy) {
+            const p = players.find(pl => pl.name === task.claimedBy);
+            if (p) { p.claimedTaskId = null; p.station = 'idle'; }
+          }
+        }
         orders.splice(i, 1);
         teamScore = Math.max(0, teamScore - SCORE_PENALTY);
         ordersExpired++;
       }
     }
 
-    // Remove completed orders
+    // Remove completed orders (keep briefly for animation, then remove)
     for (let i = orders.length - 1; i >= 0; i--) {
       if (orders[i].status === 'completed') {
         orders.splice(i, 1);
@@ -349,83 +345,94 @@ function createGame() {
       _spawnOrder();
       orderAccum = 0;
     }
-
-    _reassignTasks();
   }
 
-  // ── State snapshots ─────────────────────────────────────────────────────
+  // ── State snapshots ───────────────────────────────────────────────────────
+
+  function _taskSnapshot(t) {
+    return {
+      id: t.id, taskKey: t.taskKey, type: t.type, label: t.label,
+      emoji: t.emoji, station: t.station,
+      targetTaps: t.targetTaps, targetCircles: t.targetCircles,
+      status: t.status, progress: t.progress,
+      claimedBy: t.claimedBy, claimedColor: t.claimedColor,
+    };
+  }
 
   function state() {
     return {
       players: players.map(p => ({
-        id:    p.id,
-        name:  p.name,
-        color: p.color,
-        score: p.score,
-        hasTask: !!_getActiveTaskForPlayer(p.name),
-        taskLabel: _getActiveTaskForPlayer(p.name)?.label || null,
-        taskEmoji: _getActiveTaskForPlayer(p.name)?.emoji || null,
+        id: p.id, name: p.name, color: p.color, emoji: p.emoji,
+        score: p.score, station: p.station,
+        busy: !!p.claimedTaskId,
+        claimedTaskId: p.claimedTaskId,
       })),
       orders: orders.filter(o => o.status === 'active').map(o => ({
-        id:         o.id,
-        recipeName: o.recipeName,
-        emoji:      o.emoji,
-        points:     o.points,
-        timeLeft:   Math.max(0, o.timeLeft),
-        maxTime:    o.maxTime,
-        tasks: o.tasks.map(t => ({
-          id:            t.id,
-          label:         t.label,
-          emoji:         t.emoji,
-          type:          t.type,
-          assignedTo:    t.assignedTo,
-          assignedColor: t.assignedColor,
-          status:        t.status,
-          progress:      t.progress,
-          targetTaps:    t.targetTaps,
-          targetCircles: t.targetCircles,
-        })),
+        id: o.id, recipeName: o.recipeName, emoji: o.emoji, points: o.points,
+        timeLeft: Math.max(0, o.timeLeft), maxTime: o.maxTime,
+        tasks: o.tasks.map(_taskSnapshot),
       })),
-      score:      teamScore,
+      score: teamScore,
       timeLeftMs: Math.max(0, timeLeftMs),
       over,
       stats: { tasksCompleted, ordersFilled, ordersExpired },
+      stations: STATIONS,
     };
   }
 
-  // Personal state for a single player's phone
+  // Personal state for a player's phone — includes available tasks they can claim
   function playerState(playerId) {
     const p = getPlayer(playerId);
     if (!p) return null;
 
-    const task = _getActiveTaskForPlayer(p.name);
+    // Get the task they're currently working on
+    let currentTask = null;
+    if (p.claimedTaskId) {
+      const { task, order } = _findTask(p.claimedTaskId);
+      if (task && task.status === 'claimed') {
+        currentTask = {
+          ..._taskSnapshot(task),
+          orderName: order.recipeName,
+          orderEmoji: order.emoji,
+        };
+      } else {
+        // Task was removed (order expired) — clear claim
+        p.claimedTaskId = null;
+        p.station = 'idle';
+      }
+    }
+
+    // Get all available (unclaimed) tasks across all orders
+    const availableTasks = [];
+    for (const order of orders) {
+      if (order.status !== 'active') continue;
+      for (const task of order.tasks) {
+        if (task.status === 'available') {
+          availableTasks.push({
+            ..._taskSnapshot(task),
+            orderId: order.id,
+            orderName: order.recipeName,
+            orderEmoji: order.emoji,
+          });
+        }
+      }
+    }
+
     return {
-      id:    p.id,
-      name:  p.name,
-      color: p.color,
-      score: p.score,
-      task: task ? {
-        id:            task.id,
-        taskKey:       task.taskKey,
-        type:          task.type,
-        label:         task.label,
-        emoji:         task.emoji,
-        targetTaps:    task.targetTaps,
-        targetCircles: task.targetCircles,
-        timeMs:        task.timeMs,
-        progress:      task.progress,
-        status:        task.status,
-      } : null,
+      id: p.id, name: p.name, color: p.color, emoji: p.emoji,
+      score: p.score, station: p.station,
+      currentTask,
+      availableTasks,
     };
   }
 
   return {
     addPlayer, removePlayer, getPlayer,
-    tapAction, stirAction, flipAction,
+    claimTask, tapAction, stirAction, flipAction,
     tick, state, playerState,
     get players() { return players; },
     get over() { return over; },
   };
 }
 
-module.exports = { createGame, PLAYER_COLORS, RECIPES, TASK_TYPES };
+module.exports = { createGame, PLAYER_COLORS, PLAYER_EMOJIS, RECIPES, TASK_TYPES, STATIONS };

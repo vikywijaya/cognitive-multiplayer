@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CaritaHub TV Cooking</title>
+  <title>CaritaHub Kitchen Rush!</title>
   <link rel="stylesheet" href="/css/tv-cooking.css" />
 </head>
 <body>
@@ -14,9 +14,7 @@
     <div class="lobby-subtitle">Multiplayer Cooking — Scan with your phone to join as a chef!</div>
     <div class="lobby-body">
       <div class="qr-section">
-        <div class="qr-box">
-          <div id="qrcode"></div>
-        </div>
+        <div class="qr-box"><div id="qrcode"></div></div>
         <div class="qr-instruction">Scan with phone camera</div>
         <div id="joinUrl" class="qr-url"></div>
       </div>
@@ -32,35 +30,42 @@
 
   <!-- Playing Phase -->
   <div id="playingPhase" class="phase">
-    <!-- Top bar: timer + score -->
-    <div class="top-bar">
-      <div class="top-bar-left">
-        <span class="game-title">🍳 Kitchen Rush!</span>
-      </div>
-      <div class="top-bar-center">
-        <div class="timer-block">
-          <span class="timer-label">TIME</span>
-          <span class="timer-value" id="timerDisplay">3:00</span>
+    <!-- Top HUD -->
+    <div class="top-hud">
+      <span class="hud-title">🍳 Kitchen Rush!</span>
+      <span class="hud-timer" id="timerDisplay">3:00</span>
+      <span class="hud-score" id="scoreDisplay">0 pts</span>
+    </div>
+    <!-- Main area -->
+    <div class="main-area">
+      <!-- Kitchen scene (animated) -->
+      <div class="kitchen-scene" id="kitchenScene">
+        <div class="kitchen-floor"></div>
+        <!-- Serving window (top) -->
+        <div class="serving-window" id="servingWindow"></div>
+        <!-- Stations (positioned by JS) -->
+        <div class="station station-chop" id="stationChop" style="left:8%;top:30%;">
+          <div class="station-body">🔪</div>
+          <div class="station-label">Chop</div>
         </div>
-      </div>
-      <div class="top-bar-right">
-        <div class="score-block">
-          <span class="score-label">SCORE</span>
-          <span class="score-value" id="scoreDisplay">0</span>
+        <div class="station station-stove" id="stationStove" style="left:40%;top:30%;">
+          <div class="station-body">🍳</div>
+          <div class="station-label">Stove</div>
         </div>
+        <div class="station station-plate" id="stationPlate" style="left:72%;top:30%;">
+          <div class="station-body">🍽️</div>
+          <div class="station-label">Plate</div>
+        </div>
+        <!-- Avatars injected by JS -->
+        <div id="avatarsContainer"></div>
+      </div>
+      <!-- Orders panel (right) -->
+      <div class="orders-panel">
+        <div class="orders-panel-title">📋 Active Orders</div>
+        <div class="orders-list" id="ordersList"></div>
       </div>
     </div>
-
-    <!-- Main area: orders grid -->
-    <div class="orders-grid" id="ordersGrid">
-      <!-- Filled dynamically -->
-      <div class="order-slot empty"><div class="order-slot-placeholder">Waiting for order…</div></div>
-      <div class="order-slot empty"><div class="order-slot-placeholder">Waiting for order…</div></div>
-      <div class="order-slot empty"><div class="order-slot-placeholder">Waiting for order…</div></div>
-      <div class="order-slot empty"><div class="order-slot-placeholder">Waiting for order…</div></div>
-    </div>
-
-    <!-- Bottom bar: chef status -->
+    <!-- Chefs bar (bottom) -->
     <div class="chefs-bar" id="chefsBar"></div>
   </div>
 
@@ -74,9 +79,7 @@
   </div>
 
   <!-- Reconnect overlay -->
-  <div id="reconnectOverlay" class="reconnect-overlay hidden">
-    Connection lost. Reconnecting…
-  </div>
+  <div id="reconnectOverlay" class="reconnect-overlay hidden">Connection lost. Reconnecting…</div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
