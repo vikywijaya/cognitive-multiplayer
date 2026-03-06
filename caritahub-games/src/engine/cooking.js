@@ -25,12 +25,31 @@
  */
 
 const GAME_DURATION_MS = 180_000; // 3 minutes
-const ORDER_INTERVAL_MS = 12_000; // new order every 12s
-const ORDER_LIFETIME_MS = 60_000; // each order lasts 60s
-const MAX_ORDERS = 4;
 const MAX_PLAYERS = 4;
 const SCORE_PENALTY = 30;
 const TARGET_ORDERS = 8;          // serve this many to WIN!
+
+// ── Progressive difficulty ───────────────────────────────────────────────────
+// Difficulty ramps up based on orders filled (0→8+)
+// Phase 0 (0 orders):   easy   — slow orders, long lifetime, simple recipes
+// Phase 1 (2 orders):   medium — moderate pace
+// Phase 2 (4 orders):   hard   — faster pace, shorter lifetime
+// Phase 3 (6+ orders):  rush   — maximum pressure!
+
+function getDifficulty(ordersFilled, elapsed) {
+  const phase = Math.min(3, Math.floor(ordersFilled / 2));
+  // Also factor in time — after 90s, push harder even if not many orders filled
+  const timePhase = elapsed > 120_000 ? 2 : elapsed > 60_000 ? 1 : 0;
+  const effective = Math.max(phase, timePhase);
+
+  const settings = [
+    { orderInterval: 18_000, orderLifetime: 75_000, maxOrders: 2, tapMult: 0.8, circleMult: 0.8, label: 'Easy' },
+    { orderInterval: 14_000, orderLifetime: 60_000, maxOrders: 3, tapMult: 0.9, circleMult: 0.9, label: 'Medium' },
+    { orderInterval: 10_000, orderLifetime: 50_000, maxOrders: 4, tapMult: 1.0, circleMult: 1.0, label: 'Hard' },
+    { orderInterval:  8_000, orderLifetime: 40_000, maxOrders: 5, tapMult: 1.2, circleMult: 1.2, label: 'Rush!' },
+  ];
+  return settings[effective];
+}
 
 // ── Kitchen stations (for TV visualization) ─────────────────────────────────
 
@@ -266,11 +285,22 @@ function createGame() {
   // ── Order management ──────────────────────────────────────────────────────
 
   function _spawnOrder() {
-    if (orders.length >= MAX_ORDERS || players.length === 0) return;
-    const recipe = pickRandom(RECIPES);
+    const diff = getDifficulty(ordersFilled, GAME_DURATION_MS - timeLeftMs);
+    if (orders.length >= diff.maxOrders || players.length === 0) return;
+
+    // Early game: prefer simpler recipes (Pancake, Burger), later: all recipes
+    let pool = RECIPES;
+    if (ordersFilled < 2) {
+      pool = RECIPES.filter(r => r.name === 'Pancake' || r.name === 'Burger');
+    } else if (ordersFilled < 4) {
+      pool = RECIPES.filter(r => r.name !== 'Sushi'); // Sushi is hardest
+    }
+
+    const recipe = pickRandom(pool);
     const orderId = ++_orderIdSeq;
 
     // ALL tasks start as 'available' — players choose which to claim
+    // Difficulty scales task targets
     const tasks = recipe.steps.map((stepKey) => {
       const taskDef = TASK_TYPES[stepKey];
       return {
@@ -280,8 +310,8 @@ function createGame() {
         label: taskDef.label,
         emoji: taskDef.emoji,
         station: taskDef.station,
-        targetTaps: taskDef.targetTaps || 0,
-        targetCircles: taskDef.targetCircles || 0,
+        targetTaps: Math.round((taskDef.targetTaps || 0) * diff.tapMult),
+        targetCircles: Math.round((taskDef.targetCircles || 0) * diff.circleMult),
         status: 'available', // available → claimed → completed
         claimedBy: null,
         claimedColor: null,
@@ -289,14 +319,15 @@ function createGame() {
       };
     });
 
+    const lifetime = diff.orderLifetime;
     orders.push({
       id: orderId,
       recipeName: recipe.name,
       emoji: recipe.emoji,
       points: recipe.points,
       tasks,
-      timeLeft: ORDER_LIFETIME_MS,
-      maxTime: ORDER_LIFETIME_MS,
+      timeLeft: lifetime,
+      maxTime: lifetime,
       status: 'active',
     });
   }
@@ -346,9 +377,10 @@ function createGame() {
       }
     }
 
-    // Spawn new orders
+    // Spawn new orders (interval based on difficulty)
+    const diff = getDifficulty(ordersFilled, GAME_DURATION_MS - timeLeftMs);
     orderAccum += dt;
-    if (orderAccum >= ORDER_INTERVAL_MS && orders.length < MAX_ORDERS && players.length > 0) {
+    if (orderAccum >= diff.orderInterval && orders.length < diff.maxOrders && players.length > 0) {
       _spawnOrder();
       orderAccum = 0;
     }
@@ -366,7 +398,71 @@ function createGame() {
     };
   }
 
+  function _generateChefHint() {
+    const activeOrders = orders.filter(o => o.status === 'active');
+    if (!activeOrders.length) return { text: 'Waiting for customers…', urgent: false };
+
+    // Find most urgent order
+    let mostUrgent = null;
+    let lowestFrac = 1;
+    for (const o of activeOrders) {
+      const frac = o.timeLeft / o.maxTime;
+      if (frac < lowestFrac) { lowestFrac = frac; mostUrgent = o; }
+    }
+
+    // Find unclaimed tasks across all orders
+    const unclaimed = [];
+    for (const o of activeOrders) {
+      for (const t of o.tasks) {
+        if (t.status === 'available') unclaimed.push({ task: t, order: o });
+      }
+    }
+
+    // Count idle players
+    const idlePlayers = players.filter(p => !p.claimedTaskId);
+
+    // Urgent order warning
+    if (mostUrgent && lowestFrac < 0.25) {
+      const need = mostUrgent.tasks.filter(t => t.status === 'available');
+      if (need.length) {
+        return {
+          text: `⚠️ ${mostUrgent.emoji} ${mostUrgent.recipeName} almost expired! Need ${need.map(t => t.emoji).join(' ')}`,
+          urgent: true, targetOrder: mostUrgent.id,
+        };
+      }
+      const inProg = mostUrgent.tasks.filter(t => t.status === 'claimed');
+      if (inProg.length) {
+        return {
+          text: `⏰ Hurry! ${mostUrgent.emoji} ${mostUrgent.recipeName} running out of time!`,
+          urgent: true, targetOrder: mostUrgent.id,
+        };
+      }
+    }
+
+    // Idle players + unclaimed tasks = suggest specific assignments
+    if (idlePlayers.length > 0 && unclaimed.length > 0) {
+      const pick = unclaimed[0];
+      const stationName = pick.task.station === 'chop' ? 'Chopping' : pick.task.station === 'stove' ? 'Stove' : 'Plating';
+      return {
+        text: `👨‍🍳 ${pick.task.emoji} ${pick.task.label} needed for ${pick.order.emoji} ${pick.order.recipeName}! Head to ${stationName}!`,
+        urgent: false, targetOrder: pick.order.id,
+      };
+    }
+
+    // Everyone busy — encouragement
+    if (idlePlayers.length === 0 && players.length > 0) {
+      return { text: '🔥 Great teamwork! Keep it up chefs!', urgent: false };
+    }
+
+    // Default
+    if (unclaimed.length > 0) {
+      return { text: `📋 ${unclaimed.length} task${unclaimed.length > 1 ? 's' : ''} waiting! Check the tables!`, urgent: false };
+    }
+    return { text: '👨‍🍳 Looking good! Waiting for new orders…', urgent: false };
+  }
+
   function state() {
+    const diff = getDifficulty(ordersFilled, GAME_DURATION_MS - timeLeftMs);
     return {
       players: players.map(p => ({
         id: p.id, name: p.name, color: p.color, emoji: p.emoji,
@@ -386,6 +482,8 @@ function createGame() {
       goal: TARGET_ORDERS,
       stats: { tasksCompleted, ordersFilled, ordersExpired },
       stations: STATIONS,
+      difficulty: diff.label,
+      chefHint: _generateChefHint(),
     };
   }
 
@@ -444,4 +542,4 @@ function createGame() {
   };
 }
 
-module.exports = { createGame, PLAYER_COLORS, PLAYER_EMOJIS, RECIPES, TASK_TYPES, STATIONS, TARGET_ORDERS };
+module.exports = { createGame, PLAYER_COLORS, PLAYER_EMOJIS, RECIPES, TASK_TYPES, STATIONS, TARGET_ORDERS, getDifficulty };

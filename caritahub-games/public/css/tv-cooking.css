@@ -173,6 +173,50 @@ html, body {
   animation: pulse 0.5s infinite alternate;
 }
 
+/* ── Difficulty badge ─────────────────────────────────────────────────────── */
+.hud-difficulty {
+  font-size: 16px; font-weight: 800;
+  padding: 4px 14px; border-radius: 10px;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.diff-easy   { background: rgba(46,204,113,0.2); color: #2ecc71; }
+.diff-medium { background: rgba(241,196,15,0.2); color: #f1c40f; }
+.diff-hard   { background: rgba(231,76,60,0.2);  color: #e74c3c; }
+.diff-rush   { background: rgba(255,56,56,0.3);  color: #ff6b6b; animation: pulse 0.5s infinite alternate; }
+
+/* ── Master Chef Announcer Bar ───────────────────────────────────────────── */
+.chef-announcer {
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px 24px;
+  background: linear-gradient(90deg, rgba(45,30,15,0.9), rgba(60,40,20,0.8));
+  border-bottom: 2px solid rgba(139,90,43,0.4);
+  flex-shrink: 0;
+  transition: background 0.4s;
+}
+.chef-announcer.urgent {
+  background: linear-gradient(90deg, rgba(80,20,10,0.9), rgba(100,30,15,0.8));
+  border-bottom-color: rgba(255,80,80,0.4);
+}
+.chef-announcer-avatar {
+  font-size: 42px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  flex-shrink: 0;
+}
+.chef-announcer-bubble {
+  flex: 1; display: flex; flex-direction: column; gap: 2px;
+}
+.chef-announcer-label {
+  font-size: 12px; font-weight: 800; color: #ff9f43;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.chef-announcer-text {
+  font-size: 20px; font-weight: 700; color: #fff;
+  transition: opacity 0.3s ease;
+  line-height: 1.3;
+}
+.chef-announcer-text.changing { opacity: 0; }
+.chef-announcer.urgent .chef-announcer-text { color: #ff9f43; }
+
 /* ── Game area: left tables | kitchen | right tables ─────────────────────── */
 .game-area {
   flex: 1; display: flex; overflow: hidden;

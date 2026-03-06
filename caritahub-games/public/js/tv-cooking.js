@@ -24,6 +24,9 @@ const scoreDisplay     = document.getElementById('scoreDisplay');
 const tablesLeft       = document.getElementById('tablesLeft');
 const tablesRight      = document.getElementById('tablesRight');
 const chefsBar         = document.getElementById('chefsBar');
+const chefAnnouncerText = document.getElementById('chefAnnouncerText');
+const chefAnnouncer     = document.getElementById('chefAnnouncer');
+const difficultyDisplay = document.getElementById('difficultyDisplay');
 const avatarsContainer = document.getElementById('avatarsContainer');
 const servingWindow    = document.getElementById('servingWindow');
 const finalScore       = document.getElementById('finalScore');
@@ -284,6 +287,26 @@ function renderTables(orders) {
   tablesRight.innerHTML = orders.slice(mid).map(o => renderTableCard(o)).join('');
 }
 
+// ── Master Chef announcer (smooth text transitions) ──────────────────────
+let _lastChefText = '';
+function renderChefAnnouncer(hint) {
+  if (!hint || !chefAnnouncerText) return;
+  const text = hint.text || '';
+  if (text === _lastChefText) {
+    // Only toggle urgent class without re-animating text
+    chefAnnouncer.classList.toggle('urgent', !!hint.urgent);
+    return;
+  }
+  _lastChefText = text;
+  chefAnnouncer.classList.toggle('urgent', !!hint.urgent);
+  // Smooth crossfade
+  chefAnnouncerText.classList.add('changing');
+  setTimeout(() => {
+    chefAnnouncerText.textContent = text;
+    chefAnnouncerText.classList.remove('changing');
+  }, 200);
+}
+
 // ── Chefs bar ─────────────────────────────────────────────────────────────
 function renderChefsBar(players) {
   if (!players) return;
@@ -330,6 +353,13 @@ function renderGameState(gs) {
   }
   prevScore = gs.score;
 
+  // Difficulty badge
+  if (difficultyDisplay && gs.difficulty) {
+    difficultyDisplay.textContent = gs.difficulty;
+    difficultyDisplay.className = 'hud-difficulty diff-' + (gs.difficulty || 'Easy').toLowerCase().replace('!', '');
+  }
+
+  renderChefAnnouncer(gs.chefHint);
   renderAvatars(gs.players);
   updateStationActivity(gs.players);
   renderTables(gs.orders);
