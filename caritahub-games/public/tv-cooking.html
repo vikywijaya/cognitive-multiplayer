@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CaritaHub TV Cooking</title>
+  <link rel="stylesheet" href="/css/tv-cooking.css" />
+</head>
+<body>
+
+  <!-- ── Lobby Phase ── -->
+  <div id="lobbyPhase" class="phase active">
+    <div class="lobby-title">🍳 TV Cooking</div>
+    <div class="lobby-subtitle">Overcooked-style multiplayer! Scan with your phone to join.</div>
+    <div class="lobby-body">
+      <div class="qr-section">
+        <div class="qr-box">
+          <div id="qrcode"></div>
+        </div>
+        <div class="qr-instruction">Scan with phone camera</div>
+        <div id="joinUrl" class="qr-url"></div>
+      </div>
+      <div class="player-section">
+        <div class="player-section-title">Players Joined</div>
+        <div id="lobbyPlayerList" class="player-list">
+          <div class="player-empty">Waiting for players…</div>
+        </div>
+        <button id="startBtn" class="start-btn" disabled>Start Cooking!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Playing Phase ── -->
+  <div id="playingPhase" class="phase">
+    <div class="sidebar">
+      <div class="game-title">🍳 TV Cooking</div>
+
+      <div class="timer-block">
+        <div class="timer-label">Time Left</div>
+        <div class="timer-value" id="timerDisplay">3:00</div>
+      </div>
+
+      <div class="score-block">
+        <div class="score-label">Score</div>
+        <div class="score-value" id="scoreDisplay">0</div>
+      </div>
+
+      <div class="orders-title">Orders 📋</div>
+      <div class="orders-list" id="ordersList">
+        <div class="player-empty">No orders yet…</div>
+      </div>
+
+      <div class="players-section-title">Chefs 👨‍🍳</div>
+      <div class="players-list" id="playersList"></div>
+    </div>
+
+    <div class="kitchen-wrap">
+      <canvas id="kitchenCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- ── Game Over Phase ── -->
+  <div id="gameoverPhase" class="phase">
+    <div class="gameover-emoji">🏆</div>
+    <div class="gameover-title">Time's Up!</div>
+    <div class="gameover-score">Final Score: <span id="finalScore">0</span></div>
+    <button id="playAgainBtn" class="gameover-btn">Play Again</button>
+  </div>
+
+  <!-- ── Reconnect overlay ── -->
+  <div id="reconnectOverlay" class="reconnect-overlay hidden">
+    Connection lost. Reconnecting…
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="/js/tv-cooking.js"></script>
+</body>
+</html>

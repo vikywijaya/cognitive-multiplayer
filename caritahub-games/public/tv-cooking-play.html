@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>CaritaHub Cooking</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: #1a0a2e;
+      color: #fff;
+      -webkit-text-size-adjust: 100%;
+      touch-action: manipulation;
+      overflow: hidden;
+    }
+
+    .screen { display: none; min-height: 100vh; flex-direction: column; }
+    .screen.active { display: flex; }
+
+    /* ── Join screen ── */
+    #joinScreen {
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px;
+      gap: 18px;
+      background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 100%);
+    }
+    .join-title { font-size: 30px; font-weight: 800; color: #ff9f43; text-align: center; }
+    .join-sub   { font-size: 16px; color: #aaa; text-align: center; }
+    .join-input {
+      width: 100%; max-width: 360px;
+      font-size: 20px; padding: 14px 18px;
+      border: 3px solid #ff9f43; border-radius: 12px;
+      background: rgba(255,255,255,0.07); color: #fff;
+      text-align: center; outline: none;
+    }
+    .join-input::placeholder { color: #666; }
+    .join-input:focus { border-color: #ffd700; }
+    .room-input {
+      width: 100%; max-width: 360px;
+      font-size: 28px; padding: 14px 18px;
+      border: 3px solid #4ecca3; border-radius: 12px;
+      background: rgba(255,255,255,0.07); color: #fff;
+      text-align: center; outline: none; text-transform: uppercase;
+      letter-spacing: 4px;
+    }
+    .room-input::placeholder { color: #666; letter-spacing: 1px; text-transform: none; }
+    .room-input:focus { border-color: #ffd700; }
+    .join-btn {
+      width: 100%; max-width: 360px;
+      font-size: 20px; font-weight: 800;
+      padding: 18px; border: none; border-radius: 12px;
+      background: linear-gradient(90deg, #ff9f43, #ee5a24);
+      color: #fff; cursor: pointer;
+    }
+    .join-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .join-btn:active:not(:disabled) { transform: scale(0.97); }
+    .join-error { font-size: 15px; color: #ff6b6b; text-align: center; }
+
+    /* ── Waiting screen ── */
+    #waitScreen {
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 100%);
+    }
+    .wait-emoji { font-size: 72px; animation: spin 3s linear infinite; }
+    @keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+    .wait-title { font-size: 26px; font-weight: 800; color: #ff9f43; text-align: center; }
+    .wait-sub   { font-size: 18px; color: #aaa; text-align: center; padding: 0 24px; }
+
+    /* ── Controller screen ── */
+    #controllerScreen {
+      padding: 0;
+      background: #1a0a2e;
+    }
+
+    /* ── Header bar ── */
+    .ctrl-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: rgba(0,0,0,0.4);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .ctrl-name   { font-size: 16px; font-weight: 700; }
+    .ctrl-holding {
+      flex: 1;
+      text-align: center;
+      font-size: 15px;
+      font-weight: 600;
+      color: #ffd700;
+    }
+    .ctrl-score  { font-size: 16px; font-weight: 700; color: #ff9f43; }
+    .ctrl-timer  { font-size: 16px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+    .ctrl-timer.low { color: #ff6b6b; animation: pulse 0.5s infinite alternate; }
+    @keyframes pulse { from { opacity: 1; } to { opacity: 0.5; } }
+
+    /* ── Main controller body ── */
+    .ctrl-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px 20px;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    /* ── Action buttons ── */
+    .actions-area {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+      justify-content: center;
+      max-height: 40vh;
+      overflow-y: auto;
+    }
+
+    .action-btn {
+      width: 100%;
+      padding: 16px 18px;
+      font-size: 18px;
+      font-weight: 700;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.2);
+      text-align: center;
+      transition: transform 0.08s, background 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .action-btn:active:not(:disabled) { transform: scale(0.95); background: rgba(255,255,255,0.2); }
+    .action-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .action-btn.primary {
+      background: linear-gradient(90deg, #ff9f43, #ee5a24);
+      border-color: transparent;
+      font-size: 20px;
+    }
+    .action-btn.primary:active { transform: scale(0.95); }
+
+    .no-actions {
+      color: #666;
+      font-size: 16px;
+      text-align: center;
+      padding: 20px 0;
+    }
+
+    /* ── D-Pad ── */
+    .dpad-wrap {
+      flex-shrink: 0;
+      margin-bottom: 8px;
+    }
+
+    .dpad {
+      display: grid;
+      grid-template-areas:
+        ". up ."
+        "left center right"
+        ". down .";
+      grid-template-columns: 72px 72px 72px;
+      grid-template-rows: 72px 72px 72px;
+      gap: 4px;
+    }
+
+    .dpad-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.1);
+      border: 2px solid rgba(255,255,255,0.2);
+      border-radius: 12px;
+      font-size: 28px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      transition: background 0.08s, transform 0.08s;
+    }
+    .dpad-btn:active { background: rgba(255,255,255,0.25); transform: scale(0.92); }
+    .dpad-btn[data-dir="up"]    { grid-area: up; }
+    .dpad-btn[data-dir="left"]  { grid-area: left; }
+    .dpad-btn[data-dir="down"]  { grid-area: down; }
+    .dpad-btn[data-dir="right"] { grid-area: right; }
+    .dpad-center { grid-area: center; }
+
+    /* ── Orders mini view ── */
+    .orders-mini {
+      width: 100%;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      flex-shrink: 0;
+      padding-bottom: 4px;
+    }
+    .order-chip {
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.07);
+      border-radius: 10px;
+      padding: 6px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      border-left: 3px solid #ff9f43;
+      white-space: nowrap;
+    }
+    .order-chip.urgent { border-color: #ff6b6b; color: #ff6b6b; }
+
+    /* ── Game over ── */
+    #gameoverScreen {
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 100%);
+    }
+    .go-emoji  { font-size: 80px; }
+    .go-title  { font-size: 36px; font-weight: 900; color: #ffd700; }
+    .go-score  { font-size: 28px; color: #ccc; }
+    .go-score span { color: #ffd700; font-weight: 900; font-size: 36px; }
+
+    /* ── Reconnect overlay ── */
+    .reconnect {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 700;
+      z-index: 999;
+    }
+    .reconnect.hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Join ── -->
+  <div id="joinScreen" class="screen active">
+    <div class="join-title">🍳 TV Cooking</div>
+    <div class="join-sub">Enter the room code shown on the TV</div>
+    <input id="roomInput" class="room-input" type="text" maxlength="8" placeholder="ROOM CODE" autocomplete="off" spellcheck="false" />
+    <input id="nameInput" class="join-input" type="text" maxlength="20" placeholder="Your name" autocomplete="off" />
+    <button id="joinBtn" class="join-btn">Join Game</button>
+    <div id="joinError" class="join-error"></div>
+  </div>
+
+  <!-- ── Waiting ── -->
+  <div id="waitScreen" class="screen">
+    <div class="wait-emoji">🍳</div>
+    <div class="wait-title">Waiting for game to start…</div>
+    <div class="wait-sub" id="waitMsg">Waiting for the TV host to start the game.</div>
+  </div>
+
+  <!-- ── Controller ── -->
+  <div id="controllerScreen" class="screen">
+    <div class="ctrl-header">
+      <span class="ctrl-name" id="ctrlName"></span>
+      <span class="ctrl-holding" id="ctrlHolding"></span>
+      <span class="ctrl-timer" id="ctrlTimer">3:00</span>
+    </div>
+
+    <div class="ctrl-body">
+      <!-- Orders mini -->
+      <div class="orders-mini" id="ordersMini"></div>
+
+      <!-- Action buttons -->
+      <div class="actions-area" id="actionsArea">
+        <div class="no-actions">Move to a station to see available actions</div>
+      </div>
+
+      <!-- D-pad -->
+      <div class="dpad-wrap">
+        <div class="dpad">
+          <button class="dpad-btn" data-dir="up">▲</button>
+          <button class="dpad-btn" data-dir="left">◀</button>
+          <div class="dpad-center"></div>
+          <button class="dpad-btn" data-dir="right">▶</button>
+          <button class="dpad-btn" data-dir="down">▼</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Game Over ── -->
+  <div id="gameoverScreen" class="screen">
+    <div class="go-emoji">🏆</div>
+    <div class="go-title">Time's Up!</div>
+    <div class="go-score">Score: <span id="goScore">0</span></div>
+  </div>
+
+  <!-- ── Reconnect overlay ── -->
+  <div id="reconnectOverlay" class="reconnect hidden">Reconnecting…</div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+  'use strict';
+  /* ── CaritaHub TV Cooking — phone player client ───────────────────────── */
+
+  const socket = io({ transports: ['websocket', 'polling'] });
+
+  // ── DOM ──────────────────────────────────────────────────────────────────
+  const joinScreen       = document.getElementById('joinScreen');
+  const waitScreen       = document.getElementById('waitScreen');
+  const controllerScreen = document.getElementById('controllerScreen');
+  const gameoverScreen   = document.getElementById('gameoverScreen');
+  const roomInput        = document.getElementById('roomInput');
+  const nameInput        = document.getElementById('nameInput');
+  const joinBtn          = document.getElementById('joinBtn');
+  const joinError        = document.getElementById('joinError');
+  const waitMsg          = document.getElementById('waitMsg');
+  const ctrlName         = document.getElementById('ctrlName');
+  const ctrlHolding      = document.getElementById('ctrlHolding');
+  const ctrlTimer        = document.getElementById('ctrlTimer');
+  const actionsArea      = document.getElementById('actionsArea');
+  const ordersMini       = document.getElementById('ordersMini');
+  const goScore          = document.getElementById('goScore');
+  const reconnectOverlay = document.getElementById('reconnectOverlay');
+
+  // ── State ────────────────────────────────────────────────────────────────
+  let myName    = '';
+  let myColor   = '';
+  let myRoomId  = null;
+  let gameActive = false;
+
+  // Pre-fill room code from URL ?room=
+  const params = new URLSearchParams(location.search);
+  const preRoom = params.get('room') || '';
+  if (preRoom) roomInput.value = preRoom.toUpperCase();
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  function showScreen(id) {
+    [joinScreen, waitScreen, controllerScreen, gameoverScreen].forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function formatTime(ms) {
+    const s = Math.ceil(ms / 1000);
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, '0')}`;
+  }
+
+  function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Join flow ─────────────────────────────────────────────────────────────
+  function doJoin() {
+    const room = roomInput.value.trim().toUpperCase();
+    const name = nameInput.value.trim();
+    joinError.textContent = '';
+    if (!room) { joinError.textContent = 'Enter the room code from the TV.'; return; }
+    if (!name) { joinError.textContent = 'Enter your name.'; return; }
+    myName = name;
+    myRoomId = room;
+    joinBtn.disabled = true;
+    socket.emit('join_game', { gameType: 'cooking', playerName: name, roomId: room });
+  }
+
+  joinBtn.addEventListener('click', doJoin);
+  nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+  roomInput.addEventListener('keydown', e => { if (e.key === 'Enter') nameInput.focus(); });
+  roomInput.addEventListener('input', () => {
+    roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  });
+
+  // ── D-pad ─────────────────────────────────────────────────────────────────
+  // Use touchstart/touchend for faster response on mobile
+  let moveInterval = null;
+
+  function startMove(dir) {
+    if (!gameActive) return;
+    socket.emit('cooking_move', { direction: dir });
+    clearInterval(moveInterval);
+    moveInterval = setInterval(() => {
+      if (gameActive) socket.emit('cooking_move', { direction: dir });
+    }, 150);
+  }
+
+  function stopMove() {
+    clearInterval(moveInterval);
+    moveInterval = null;
+  }
+
+  document.querySelectorAll('.dpad-btn').forEach(btn => {
+    const dir = btn.dataset.dir;
+    btn.addEventListener('touchstart', e => { e.preventDefault(); startMove(dir); }, { passive: false });
+    btn.addEventListener('touchend',   e => { e.preventDefault(); stopMove(); },     { passive: false });
+    btn.addEventListener('touchcancel', stopMove);
+    // Fallback for non-touch
+    btn.addEventListener('mousedown', () => startMove(dir));
+    btn.addEventListener('mouseup',   stopMove);
+    btn.addEventListener('mouseleave', stopMove);
+  });
+
+  // Keyboard support
+  const keyDirMap = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right' };
+  const keysHeld = new Set();
+  document.addEventListener('keydown', e => {
+    const dir = keyDirMap[e.key];
+    if (!dir || !gameActive || keysHeld.has(e.key)) return;
+    keysHeld.add(e.key);
+    startMove(dir);
+  });
+  document.addEventListener('keyup', e => {
+    if (keysHeld.has(e.key)) { keysHeld.delete(e.key); stopMove(); }
+  });
+
+  // ── Render player state ───────────────────────────────────────────────────
+  function renderPlayerState(ps) {
+    ctrlName.textContent = ps.name || myName;
+    if (myColor) ctrlName.style.color = myColor;
+
+    if (ps.holding) {
+      ctrlHolding.textContent = `Holding: ${ps.holdingEmoji || ''} ${ps.holdingLabel || ps.holding}`;
+    } else {
+      ctrlHolding.textContent = '(empty hands)';
+    }
+
+    // Action buttons
+    const actions = ps.actions || [];
+    if (!actions.length) {
+      actionsArea.innerHTML = '<div class="no-actions">Move to a station to see actions</div>';
+    } else {
+      actionsArea.innerHTML = actions.map((a, i) => `
+        <button
+          class="action-btn${a.primary ? ' primary' : ''}"
+          ${a.disabled ? 'disabled' : ''}
+          data-sx="${a.stationX}" data-sy="${a.stationY}"
+        >${escHtml(a.label)}</button>
+      `).join('');
+      actionsArea.querySelectorAll('.action-btn:not(:disabled)').forEach(btn => {
+        const sx = parseInt(btn.dataset.sx, 10);
+        const sy = parseInt(btn.dataset.sy, 10);
+        btn.addEventListener('click', () => {
+          socket.emit('cooking_action', { stationX: sx, stationY: sy });
+        });
+        btn.addEventListener('touchstart', e => {
+          e.preventDefault();
+          socket.emit('cooking_action', { stationX: sx, stationY: sy });
+        }, { passive: false });
+      });
+    }
+  }
+
+  function renderOrdersMini(orders) {
+    if (!orders || !orders.length) {
+      ordersMini.innerHTML = '';
+      return;
+    }
+    ordersMini.innerHTML = orders.map(o => {
+      const frac = o.timeLeft / o.maxTime;
+      return `<div class="order-chip${frac < 0.3 ? ' urgent' : ''}">${o.emoji} ${escHtml(o.recipeName)} · ${Math.ceil(o.timeLeft/1000)}s</div>`;
+    }).join('');
+  }
+
+  // ── Socket events ─────────────────────────────────────────────────────────
+  socket.on('connect', () => {
+    reconnectOverlay.classList.add('hidden');
+    // Reconnect: re-join if we had a room
+    if (myRoomId && myName) {
+      socket.emit('join_game', { gameType: 'cooking', playerName: myName, roomId: myRoomId, reconnect: true });
+    }
+  });
+
+  socket.on('disconnect', () => reconnectOverlay.classList.remove('hidden'));
+
+  socket.on('joined', ({ roomId: rid, color, reconnected }) => {
+    myRoomId = rid;
+    myColor  = color;
+    joinBtn.disabled = false;
+
+    if (gameActive || reconnected) {
+      // Will receive cooking_state / cooking_player_state
+      if (!gameActive) showScreen('waitScreen');
+    } else {
+      showScreen('waitScreen');
+      waitMsg.textContent = 'Waiting for the TV host to start the game.';
+    }
+  });
+
+  socket.on('error', ({ message }) => {
+    joinError.textContent = message;
+    joinBtn.disabled = false;
+  });
+
+  socket.on('cooking_started', (gs) => {
+    gameActive = true;
+    showScreen('controllerScreen');
+    ctrlTimer.textContent = formatTime(gs.timeLeftMs || 0);
+    renderOrdersMini(gs.orders);
+  });
+
+  socket.on('cooking_state', (gs) => {
+    if (!gameActive) return;
+    const ms = gs.timeLeftMs || 0;
+    ctrlTimer.textContent = formatTime(ms);
+    ctrlTimer.classList.toggle('low', ms < 30_000);
+    renderOrdersMini(gs.orders);
+  });
+
+  socket.on('cooking_player_state', (ps) => {
+    if (!gameActive) return;
+    renderPlayerState(ps);
+  });
+
+  socket.on('cooking_game_over', ({ score }) => {
+    gameActive = false;
+    stopMove();
+    goScore.textContent = score || 0;
+    showScreen('gameoverScreen');
+  });
+
+  socket.on('play_again', () => {
+    gameActive = false;
+    stopMove();
+    showScreen('waitScreen');
+    waitMsg.textContent = 'Waiting for the TV host to start a new game.';
+  });
+
+  socket.on('cooking_action_error', ({ reason }) => {
+    // Brief flash on the actions area
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:rgba(255,100,100,0.9);color:#fff;padding:10px 20px;border-radius:10px;font-size:15px;z-index:200;';
+    el.textContent = reason;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1500);
+  });
+  </script>
+</body>
+</html>

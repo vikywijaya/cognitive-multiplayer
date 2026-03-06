@@ -12,6 +12,7 @@ const { createGame: createRhythmGame }     = require('../engine/rhythm-tap');
 const { createGame: createHigherLowerGame } = require('../engine/higher-lower');
 const { createGame: createReversiGame }        = require('../engine/reversi');
 const { createGame: createSnakesLaddersGame } = require('../engine/snakes-ladders');
+const { createGame: createCookingGame }        = require('../engine/cooking');
 const analytics = require('../analytics/clickhouse');
 const leaderboard = require('../leaderboard');
 
@@ -351,6 +352,39 @@ function slPayload(roomId, room, engine) {
   };
 }
 
+// ── Cooking Game helpers ──────────────────────────────────────────────────────
+const COOKING_COLORS = ['tv-host', 'cook1', 'cook2', 'cook3', 'cook4'];
+const cookingTimers = new Map(); // roomId → intervalHandle
+
+function cookingTick(io, roomId) {
+  const engine = engines.get(roomId);
+  const room   = roomManager.getRoom(roomId);
+  if (!engine || !room) {
+    clearInterval(cookingTimers.get(roomId));
+    cookingTimers.delete(roomId);
+    return;
+  }
+  engine.tick();
+  const gs = engine.state();
+  io.to(roomId).emit('cooking_state', gs);
+
+  // Send personalised action lists to each connected player phone
+  for (const rp of room.players) {
+    if (rp.color === 'tv-host' || !rp.socketId) continue;
+    const ps = engine.playerState(rp.name);
+    if (ps) io.to(rp.socketId).emit('cooking_player_state', ps);
+  }
+
+  if (gs.over) {
+    clearInterval(cookingTimers.get(roomId));
+    cookingTimers.delete(roomId);
+    io.to(roomId).emit('cooking_game_over', { score: gs.score });
+    engines.delete(roomId);
+    roomGameTypes.delete(roomId);
+    analytics.logEvent('game_ended', roomId, 'server', 'timer', { score: gs.score, gameType: 'cooking' });
+  }
+}
+
 // ── TV Reversi helpers ────────────────────────────────────────────────────────
 const TV_REVERSI_COLORS = ['tv-host', 'black', 'white']; // tv-host = display, black moves first
 
@@ -428,6 +462,7 @@ module.exports = function wireEvents(io) {
         else if (gameType === 'tv-reversi')          colors = TV_REVERSI_COLORS.slice(); // 1 host + 2 players
         else if (gameType === 'snakes-ladders')      colors = SL_COLORS.slice(0, 6); // up to 6 players
         else if (gameType === 'reversi')             colors = REVERSI_COLORS.slice();
+        else if (gameType === 'cooking')             colors = COOKING_COLORS.slice(); // tv-host + up to 4 cooks
         else                               colors = ['red', 'black'];
         targetRoomId = roomManager.createRoom({ colors });
         roomGameTypes.set(targetRoomId, gameType);
@@ -479,6 +514,12 @@ module.exports = function wireEvents(io) {
           socket.emit('game_state', slPayload(targetRoomId, room, engine));
         } else if (gt === 'reversi') {
           socket.emit('game_state', reversiPayload(targetRoomId, room, engine));
+        } else if (gt === 'cooking') {
+          socket.emit('cooking_state', engine.state());
+          if (socket.data.color !== 'tv-host') {
+            const ps = engine.playerState(name);
+            if (ps) socket.emit('cooking_player_state', ps);
+          }
         } else {
           socket.emit('game_state', gameStatePayload(targetRoomId, room, engine));
         }
@@ -504,9 +545,13 @@ module.exports = function wireEvents(io) {
       if (engines.has(roomId)) return; // already started
 
       const gameType = roomGameTypes.get(roomId) || 'xiangqi';
-      const requiredPlayers = gameType === 'chordaidi' ? 4 : 2;
-      if (room.players.length < requiredPlayers) {
-        return socket.emit('error', { message: `Waiting for ${requiredPlayers - room.players.length} more player(s).` });
+      const nonHostPlayers = room.players.filter(p => p.color !== 'tv-host');
+      const requiredPlayers = gameType === 'chordaidi' ? 4
+        : gameType === 'cooking' ? 1
+        : 2;
+      const countForCheck = gameType === 'cooking' ? nonHostPlayers.length : room.players.length;
+      if (countForCheck < requiredPlayers) {
+        return socket.emit('error', { message: `Waiting for ${requiredPlayers - countForCheck} more player(s).` });
       }
 
       let engine;
@@ -519,6 +564,13 @@ module.exports = function wireEvents(io) {
       else if (gameType === 'rhythm-tap')          engine = createRhythmGame(room.players.length);
       else if (gameType === 'snakes-ladders')      engine = createSnakesLaddersGame(room.players.length);
       else if (gameType === 'reversi')             engine = createReversiGame();
+      else if (gameType === 'cooking') {
+        engine = createCookingGame();
+        // Register non-host players in the cooking engine
+        for (const rp of nonHostPlayers) {
+          engine.addPlayer(rp.name, rp.name);
+        }
+      }
       else                               engine = createXiangqiGame();
       engines.set(roomId, engine);
 
@@ -565,6 +617,18 @@ module.exports = function wireEvents(io) {
         io.to(roomId).emit('game_started', slPayload(roomId, room, engine));
       } else if (gameType === 'reversi') {
         io.to(roomId).emit('game_started', reversiPayload(roomId, room, engine));
+      } else if (gameType === 'cooking') {
+        const gs = engine.state();
+        io.to(roomId).emit('cooking_started', gs);
+        // Send personal action states immediately
+        for (const rp of room.players) {
+          if (rp.color === 'tv-host' || !rp.socketId) continue;
+          const ps = engine.playerState(rp.name);
+          if (ps) io.to(rp.socketId).emit('cooking_player_state', ps);
+        }
+        // Start tick loop at 200ms
+        const timer = setInterval(() => cookingTick(io, roomId), 200);
+        cookingTimers.set(roomId, timer);
       } else {
         const payload = gameStatePayload(roomId, room, engine);
         io.to(roomId).emit('game_started', payload);
@@ -1080,6 +1144,46 @@ module.exports = function wireEvents(io) {
         engines.delete(roomId);
         roomGameTypes.delete(roomId);
       }
+    });
+
+    // ── Cooking: player moves ─────────────────────────────────────────
+    socket.on('cooking_move', ({ direction }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      const room   = roomManager.getRoom(roomId);
+      if (!engine || !room) return;
+      if (roomGameTypes.get(roomId) !== 'cooking') return;
+      const playerName = socket.data.playerName;
+      engine.move(playerName, direction);
+      // Send updated personal state immediately (position + available actions)
+      const ps = engine.playerState(playerName);
+      if (ps) socket.emit('cooking_player_state', ps);
+    });
+
+    // ── Cooking: player performs station action ───────────────────────
+    socket.on('cooking_action', ({ stationX, stationY }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      const room   = roomManager.getRoom(roomId);
+      if (!engine || !room) return;
+      if (roomGameTypes.get(roomId) !== 'cooking') return;
+      const playerName = socket.data.playerName;
+      const result = engine.action(playerName, stationX, stationY);
+      if (!result.ok) {
+        socket.emit('cooking_action_error', { reason: result.reason });
+        return;
+      }
+      // Broadcast full state + personal states immediately (don't wait for tick)
+      const gs = engine.state();
+      io.to(roomId).emit('cooking_state', gs);
+      for (const rp of room.players) {
+        if (rp.color === 'tv-host' || !rp.socketId) continue;
+        const ps = engine.playerState(rp.name);
+        if (ps) io.to(rp.socketId).emit('cooking_player_state', ps);
+      }
+      analytics.logEvent('move_made', roomId, socket.id, playerName, { action: result.action, gameType: 'cooking' });
     });
 
     // ── Snakes & Ladders: player rolls the dice ──────────────────────
@@ -1604,6 +1708,11 @@ module.exports = function wireEvents(io) {
       if (tvBoggleTimers.has(roomId)) {
         clearTimeout(tvBoggleTimers.get(roomId));
         tvBoggleTimers.delete(roomId);
+      }
+      // Clear any running Cooking tick timer
+      if (cookingTimers.has(roomId)) {
+        clearInterval(cookingTimers.get(roomId));
+        cookingTimers.delete(roomId);
       }
       // Clear engine so start_game can run fresh
       engines.delete(roomId);
