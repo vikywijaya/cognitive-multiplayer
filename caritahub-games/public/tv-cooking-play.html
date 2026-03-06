@@ -152,10 +152,10 @@
     .mgr-hint {
       font-size: 18px; font-weight: 800; color: #fff; line-height: 1.35;
       margin-top: 2px;
-      animation: hintFadeIn 0.3s ease-out;
+      transition: color 0.4s ease, opacity 0.4s ease;
     }
-    @keyframes hintFadeIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
-    .mgr-hint.urgent { color: #ff6b6b; font-size: 20px; }
+    .mgr-hint.changing { opacity: 0; }
+    .mgr-hint.urgent { color: #ff9f43; font-size: 20px; }
 
     .game-body { flex: 1; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
 
@@ -555,13 +555,16 @@
       }
     }
 
-    el.textContent = hint;
-    if (urgent) el.classList.add('urgent');
-    // Re-trigger fade-in animation
-    void el.offsetWidth;
-    el.style.animation = 'none';
-    void el.offsetWidth;
-    el.style.animation = '';
+    // Only update if text actually changed — prevents constant blinking
+    if (el.textContent === hint) return;
+
+    // Smooth crossfade: fade out, swap text, fade in
+    el.classList.add('changing');
+    el.classList.toggle('urgent', urgent);
+    setTimeout(() => {
+      el.textContent = hint;
+      el.classList.remove('changing');
+    }, 200);
   }
 
   // ── How To Play (phone) ────────────────────────────────────────────────

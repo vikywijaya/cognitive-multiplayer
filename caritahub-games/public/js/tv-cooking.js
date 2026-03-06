@@ -130,7 +130,7 @@ function renderLobbyPlayers(players) {
   startBtn.disabled = !cooks.some(p => p.connected);
 }
 
-// ── Kitchen avatar rendering ──────────────────────────────────────────────
+// ── Kitchen avatar rendering (DOM-diffing to preserve CSS transitions) ────
 function renderAvatars(players) {
   if (!players) return;
   const stationGroups = {};
@@ -139,39 +139,81 @@ function renderAvatars(players) {
     if (!stationGroups[s]) stationGroups[s] = [];
     stationGroups[s].push(p);
   }
-  let html = '';
+
+  // Reuse existing avatar elements to preserve CSS transitions
+  const existingAvatars = {};
+  for (const el of avatarsContainer.querySelectorAll('.avatar')) {
+    existingAvatars[el.dataset.player] = el;
+  }
+  const seen = new Set();
+
   for (const p of players) {
     const s = p.station || 'idle';
     const group = stationGroups[s];
     const idx = group.indexOf(p);
     const pos = avatarPos(s, idx, group.length);
-    const busyClass = p.busy ? ' busy' : '';
-    html += `
-      <div class="avatar${busyClass}" style="left:${pos.x}%;top:${pos.y}%;" data-player="${escHtml(p.name)}">
+    const pName = escHtml(p.name);
+    seen.add(pName);
+
+    let el = existingAvatars[pName];
+    if (el) {
+      // Update existing avatar — preserves CSS transition
+      el.style.left = pos.x + '%';
+      el.style.top  = pos.y + '%';
+      el.className = 'avatar' + (p.busy ? ' busy' : '');
+      // Update task label
+      const labelEl = el.querySelector('.avatar-task-label');
+      if (p.busy) {
+        const taskLabel = p.station === 'chop' ? '🔪 Chopping' : p.station === 'stove' ? '🍳 Cooking' : p.station === 'plate' ? '🍽️ Plating' : 'Working…';
+        if (labelEl) { labelEl.textContent = taskLabel; }
+        else {
+          const lbl = document.createElement('div');
+          lbl.className = 'avatar-task-label';
+          lbl.textContent = taskLabel;
+          el.appendChild(lbl);
+        }
+      } else if (labelEl) {
+        labelEl.remove();
+      }
+    } else {
+      // Create new avatar
+      el = document.createElement('div');
+      el.className = 'avatar' + (p.busy ? ' busy' : '');
+      el.style.left = pos.x + '%';
+      el.style.top  = pos.y + '%';
+      el.dataset.player = pName;
+      el.innerHTML = `
         <div class="avatar-emoji">${p.emoji || '🧑‍🍳'}</div>
-        <div class="avatar-name" style="background:${p.color};color:#fff;">${escHtml(p.name)}</div>
+        <div class="avatar-name" style="background:${p.color};color:#fff;">${pName}</div>
         ${p.busy ? `<div class="avatar-task-label">${escHtml(p.station === 'chop' ? '🔪 Chopping' : p.station === 'stove' ? '🍳 Cooking' : p.station === 'plate' ? '🍽️ Plating' : 'Working…')}</div>` : ''}
-      </div>
-    `;
+      `;
+      avatarsContainer.appendChild(el);
+    }
   }
-  avatarsContainer.innerHTML = html;
+
+  // Remove disconnected players
+  for (const [name, el] of Object.entries(existingAvatars)) {
+    if (!seen.has(name)) el.remove();
+  }
 }
 
 // ── Station activity bubbles ──────────────────────────────────────────────
+const _stationActive = { chop: false, stove: false, plate: false };
 function updateStationActivity(players) {
   ['chop', 'stove', 'plate'].forEach(s => {
     const stationEl = document.getElementById('station' + s.charAt(0).toUpperCase() + s.slice(1));
     if (!stationEl) return;
-    const working = players.filter(p => p.station === s && p.busy);
+    const isWorking = players.some(p => p.station === s && p.busy);
+    // Only modify DOM when state changes
+    if (isWorking === _stationActive[s]) return;
+    _stationActive[s] = isWorking;
     const existing = stationEl.querySelector('.station-activity');
-    if (working.length > 0) {
-      if (!existing) {
-        const div = document.createElement('div');
-        div.className = 'station-activity';
-        div.innerHTML = '<div class="station-bubble"></div><div class="station-bubble"></div><div class="station-bubble"></div>';
-        stationEl.querySelector('.station-body').appendChild(div);
-      }
-    } else if (existing) {
+    if (isWorking && !existing) {
+      const div = document.createElement('div');
+      div.className = 'station-activity';
+      div.innerHTML = '<div class="station-bubble"></div><div class="station-bubble"></div><div class="station-bubble"></div>';
+      stationEl.querySelector('.station-body').appendChild(div);
+    } else if (!isWorking && existing) {
       existing.remove();
     }
   });
