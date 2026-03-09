@@ -174,6 +174,11 @@ html, body {
   flex-shrink: 0;
 }
 .hud-title   { font-size: 24px; font-weight: 900; color: #f39c12; }
+.hud-round   {
+  font-size: 18px; font-weight: 900; color: #fff;
+  background: rgba(243,156,18,0.2); border-radius: 10px;
+  padding: 3px 14px; letter-spacing: 1px;
+}
 .hud-laps    { font-size: 18px; color: #aaa; }
 .hud-leader  { font-size: 18px; color: #2ecc71; font-weight: 700; }
 
@@ -311,12 +316,8 @@ html, body {
 .lane-rank.rank-2 { color: #c0c0c0; }
 .lane-rank.rank-3 { color: #cd7f32; }
 .lane-name  { font-size: 16px; font-weight: 700; color: #fff; margin-top: 2px; }
-.lane-lap   { font-size: 12px; font-weight: 700; color: #4ecca3; margin-top: 2px; letter-spacing: 0.5px; }
-.lane-lap.lap-final { color: #ff6b35; animation: lapFinalPulse 0.6s ease-in-out infinite alternate; }
-@keyframes lapFinalPulse {
-  from { color: #ff6b35; }
-  to   { color: #ffd700; }
-}
+.lane-wins  { font-size: 12px; font-weight: 700; color: #888; margin-top: 2px; letter-spacing: 0.5px; }
+.lane-wins.has-wins { color: #ffd700; }
 .lane-speed { font-size: 13px; color: #aaa; margin-top: 2px; }
 
 /* Finish flag column */
@@ -390,14 +391,14 @@ html, body {
   margin-bottom: 10px; text-align: center; letter-spacing: 1px;
 }
 .race-summary-cols {
-  display: grid; grid-template-columns: 44px 1fr 100px 90px;
+  display: grid; grid-template-columns: 44px 1fr repeat(3, 90px) 60px;
   padding: 0 8px; margin-bottom: 4px;
 }
-.summary-col-label { font-size: 11px; color: #666; text-align: right; }
+.summary-col-label { font-size: 11px; color: #666; text-align: center; }
 .summary-col-label:nth-child(2) { text-align: left; }
 .race-summary-rows { display: flex; flex-direction: column; gap: 6px; }
 .summary-row {
-  display: grid; grid-template-columns: 44px 1fr 100px 90px;
+  display: grid; grid-template-columns: 44px 1fr repeat(3, 90px) 60px;
   align-items: center; padding: 8px 8px;
   border-radius: 10px; background: rgba(255,255,255,0.04);
 }
@@ -408,8 +409,49 @@ html, body {
 .summary-medal     { font-size: 22px; }
 .summary-avatar    { font-size: 15px; display: flex; align-items: center; gap: 6px; }
 .summary-name-text { font-weight: 700; }
-.summary-time      { font-size: 15px; font-weight: 700; color: #fff; text-align: right; }
-.summary-bestlap   { font-size: 12px; color: #4ecca3; text-align: right; padding-left: 6px; }
+.summary-round-col {
+  font-size: 13px; text-align: center; color: #aaa; line-height: 1.3;
+}
+.summary-round-col small { font-size: 11px; color: #666; }
+.summary-round-col.round-win { color: #ffd700; font-weight: 800; }
+.summary-wins { font-size: 16px; text-align: center; }
+
+/* Round-over overlay */
+.round-over-overlay {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.72);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 40; animation: bannerIn 0.35s ease-out;
+}
+.round-over-content {
+  text-align: center;
+  background: linear-gradient(135deg, #0d1a2e, #1a2e4a);
+  border: 3px solid #4ecca3;
+  border-radius: 20px; padding: 28px 48px 32px;
+  box-shadow: 0 0 50px rgba(78,204,163,0.35);
+  min-width: 420px;
+}
+.round-over-title {
+  font-size: 32px; font-weight: 900; color: #4ecca3;
+  margin-bottom: 18px;
+}
+.round-result-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.round-result-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 12px; border-radius: 10px;
+  background: rgba(255,255,255,0.05); font-size: 16px;
+}
+.round-result-winner {
+  background: rgba(255,215,0,0.12);
+  border: 1px solid rgba(255,215,0,0.3);
+}
+.round-result-medal { font-size: 22px; width: 30px; }
+.round-result-name  { flex: 1; font-weight: 700; }
+.round-result-time  { color: #aaa; font-size: 14px; }
+.round-result-wins  { font-size: 16px; min-width: 40px; text-align: right; }
+.round-over-next {
+  font-size: 16px; color: #888; font-style: italic;
+}
 
 .play-again-btn {
   margin-top: 28px; padding: 16px 48px;

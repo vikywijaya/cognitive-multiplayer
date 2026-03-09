@@ -35,7 +35,7 @@
   <!-- ── Countdown Phase ────────────────────────────── -->
   <div id="countdownPhase" class="phase">
     <div class="countdown-container">
-      <div class="countdown-label">Race starts in…</div>
+      <div class="countdown-label" id="countdownLabel">Race starts in…</div>
       <div class="countdown-number" id="countdownNum">3</div>
       <div class="countdown-racers" id="countdownRacers"></div>
     </div>
@@ -45,9 +45,10 @@
   <div id="racingPhase" class="phase">
     <div class="race-hud">
       <span class="hud-title">🚲 Bike Race!</span>
+      <span class="hud-round" id="hudRound">Round 1/3</span>
       <span class="hud-laps" id="hudElapsed">0:00</span>
     </div>
-    <!-- Commentator strip: mic always visible, bubble fades in when speaking -->
+    <!-- Commentator strip -->
     <div class="commentator-strip" id="commentatorStrip">
       <div class="commentator-icon">🎙️</div>
       <div class="speech-bubble">
@@ -77,9 +78,11 @@
   const lobbyPlayerList    = document.getElementById('lobbyPlayerList');
   const startBtn           = document.getElementById('startBtn');
   const joinUrlEl          = document.getElementById('joinUrl');
+  const countdownLabel     = document.getElementById('countdownLabel');
   const countdownNum       = document.getElementById('countdownNum');
   const countdownRacers    = document.getElementById('countdownRacers');
   const raceTrackContainer = document.getElementById('raceTrackContainer');
+  const hudRound           = document.getElementById('hudRound');
   const hudElapsed         = document.getElementById('hudElapsed');
   const spectatorsTop      = document.getElementById('spectatorsTop');
   const spectatorsBottom   = document.getElementById('spectatorsBottom');
@@ -93,11 +96,11 @@
   let raceOver       = false;
   let elapsedTimer   = null;
   let startedAt      = null;
+  let currentRound   = 1;
 
   // Commentary state
   let lastLeaderName   = null;
   const commentFinished = new Set();
-  const lastPlayerLaps  = new Map();   // id → last known lap
   let lastCommentAt    = 0;
   let commentHideTimer = null;
   let commentCooldown  = false;
@@ -115,6 +118,7 @@
     return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
   }
   function formatElapsed(ms) {
+    if (!ms && ms !== 0) return '—';
     const s = Math.floor(ms / 1000);
     return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
   }
@@ -126,19 +130,14 @@
   // ── Race Commentator ──────────────────────────────────────────────────────
   const LINES = {
     start: [
-      "🚲 They're off! 3 laps to glory — let's RACE!!",
-      "💨 And the race begins! Pedal HARDER!",
-      "🏁 3 laps! Who will cross the finish line first?",
+      "🚲 They're off! 3 rounds — let's RACE!!",
+      "💨 Round begins! Pedal HARDER!",
+      "🏁 First one across wins the round! GO!",
     ],
-    lap2: [
-      (n, e) => `🔄 ${e} ${n} completes lap 1 — into lap 2!`,
-      (n, e) => `⚡ ${n} is first onto lap 2!`,
-      (n, e) => `🚲 ${n} charges into lap 2!`,
-    ],
-    lap3: [
-      (n, e) => `🔥 ${e} ${n} is on the FINAL LAP!!`,
-      (n, e) => `🚨 FINAL LAP for ${n}! Give it everything!`,
-      (n, e) => `🏁 ${n} enters the LAST lap! Can they hold on?!`,
+    roundStart: [
+      (r, t) => `🔄 Round ${r} of ${t} — PEDAL!!`,
+      (r, t) => `🚲 Round ${r}! ${t - r} more after this!`,
+      (r, t) => `🔥 FINAL ROUND — Round ${r} of ${t}! Everything on the line!`,
     ],
     lead: [
       (n, e) => `${e} ${n} surges to the front!`,
@@ -147,7 +146,7 @@
       (n, e) => `${e} ${n} is flying down the track!`,
     ],
     close: [
-      "😱 It's NECK AND NECK! Anyone could win!",
+      "😱 It's NECK AND NECK! Anyone could win this round!",
       "🔥 Too close to call! What a race!!",
       "💥 Unbelievable! They're right on top of each other!",
     ],
@@ -162,11 +161,11 @@
       (n, e) => `🚀 ${n} is FLYING! Will anyone catch them?!`,
     ],
     win: [
-      (n, e) => `🏆 ${e} ${n} WINS THE RACE!! INCREDIBLE!!`,
-      (n, e) => `🎉 ${n} crosses the finish line FIRST! CHAMPION!`,
+      (n, e) => `🏆 ${e} ${n} WINS THE ROUND!! INCREDIBLE!!`,
+      (n, e) => `🎉 ${n} crosses first! Round victory!`,
     ],
     p2:  [(n, e) => `🥈 ${n} finishes in second place!`],
-    p3:  [(n, e) => `🥉 ${n} takes the bronze!`],
+    p3:  [(n, e) => `🥉 ${n} takes third!`],
     pN:  [(n, e) => `🏁 ${n} crosses the line!`],
   };
 
@@ -184,38 +183,16 @@
     if (commentCooldown) return;
     if (Date.now() - lastCommentAt < 2200) return;
 
-    const sorted = [...gs.players].sort((a, b) => {
-      const aProgress = (a.lap || 1) * 2000 + (a.position || 0);
-      const bProgress = (b.lap || 1) * 2000 + (b.position || 0);
-      return bProgress - aProgress;
-    });
+    const sorted = [...gs.players].sort((a, b) => b.position - a.position);
     const leader = sorted[0];
     if (!leader) return;
 
-    // Priority 0: lap completions (lap increase detected)
-    for (const p of gs.players) {
-      const prevLap = lastPlayerLaps.get(p.id) || 1;
-      const curLap  = p.lap || 1;
-      if (curLap > prevLap && !p.finished) {
-        lastPlayerLaps.set(p.id, curLap);
-        if (curLap === 3) {
-          say(pickRandom(LINES.lap3)(p.name, p.emoji), 3000);
-          BikeRaceSFX.finalStretch();
-        } else {
-          say(pickRandom(LINES.lap2)(p.name, p.emoji), 2500);
-          BikeRaceSFX.leaderChange();
-        }
-        return;
-      }
-      lastPlayerLaps.set(p.id, curLap);
-    }
-
-    // Priority 1: new finishers
+    // Priority 1: new finishers this round
     for (const p of gs.players) {
       if (p.finished && !commentFinished.has(p.id)) {
         commentFinished.add(p.id);
         if (p.rank === 1) {
-          say(pickRandom(LINES.win)(p.name, p.emoji), 4500);
+          say(pickRandom(LINES.win)(p.name, p.emoji), 4000);
           BikeRaceSFX.finish();
         } else if (p.rank === 2) {
           say(pickRandom(LINES.p2)(p.name, p.emoji));
@@ -241,7 +218,7 @@
     // Priority 3: close race
     if (sorted.length > 1 && !leader.finished) {
       const gap = sorted[0].progress - sorted[1].progress;
-      if (gap < 0.04 && leader.progress > 0.15) {
+      if (gap < 0.07 && leader.progress > 0.25) {
         say(pickRandom(LINES.close));
         BikeRaceSFX.crowd();
         return;
@@ -305,8 +282,9 @@
   }
 
   // ── Countdown ─────────────────────────────────────────────────────────────
-  function runCountdown(players, cb) {
+  function runCountdown(players, label, cb) {
     showPhase('countdownPhase');
+    countdownLabel.textContent = label;
     const EMOJIS = ['🐢', '🐇', '🦊', '🐻', '🦔', '🐼'];
     countdownRacers.innerHTML = players.map((p, i) => `
       <div class="countdown-racer" style="animation-delay:${i * 0.15}s">
@@ -341,8 +319,6 @@
   // ── Build race track lanes ────────────────────────────────────────────────
   function buildRaceTrack(players) {
     buildSpectators();
-
-    // Remove old lanes only (keep commentator element)
     const oldLanes = raceTrackContainer.querySelectorAll('.player-lane');
     oldLanes.forEach(l => l.remove());
 
@@ -354,7 +330,7 @@
         <div class="lane-info">
           <div class="lane-rank" id="rank-${p.id}">—</div>
           <div class="lane-name" style="color:${p.color}">${esc(p.name)}</div>
-          <div class="lane-lap" id="lap-${p.id}">Lap 1/3</div>
+          <div class="lane-wins" id="wins-${p.id}">0 wins</div>
           <div class="lane-speed" id="speed-${p.id}">0 km/h</div>
         </div>
         <div class="lane-body">
@@ -377,11 +353,28 @@
     }
   }
 
+  // ── Reset track for next round ────────────────────────────────────────────
+  function resetTrackForRound(players) {
+    for (const p of players) {
+      const avatarEl = document.getElementById(`avatar-${p.id}`);
+      const flagEl   = document.getElementById(`flag-${p.id}`);
+      const bikeEl   = document.getElementById(`bike-${p.id}`);
+      const dashEl   = document.getElementById(`dashes-${p.id}`);
+      const charEl   = avatarEl?.querySelector('.avatar-char');
+      if (avatarEl) avatarEl.style.left = '2%';
+      if (flagEl)   flagEl.classList.remove('crossed');
+      if (bikeEl)   bikeEl.classList.remove('spinning');
+      if (charEl)   charEl.classList.remove('riding');
+      if (dashEl)   dashEl.classList.remove('moving');
+    }
+  }
+
   // ── Update race state ─────────────────────────────────────────────────────
   function updateRace(gs) {
     if (!gs.players) return;
 
     if (gs.elapsed !== undefined) hudElapsed.textContent = formatElapsed(gs.elapsed);
+    if (gs.currentRound) hudRound.textContent = `Round ${gs.currentRound}/${gs.totalRounds}`;
 
     updateCommentary(gs);
 
@@ -389,33 +382,31 @@
       const avatarEl = document.getElementById(`avatar-${p.id}`);
       const bikeEl   = document.getElementById(`bike-${p.id}`);
       const rankEl   = document.getElementById(`rank-${p.id}`);
-      const lapEl    = document.getElementById(`lap-${p.id}`);
+      const winsEl   = document.getElementById(`wins-${p.id}`);
       const speedEl  = document.getElementById(`speed-${p.id}`);
       const dashEl   = document.getElementById(`dashes-${p.id}`);
       const flagEl   = document.getElementById(`flag-${p.id}`);
       if (!avatarEl) continue;
 
-      // Lap counter
-      if (lapEl) {
-        lapEl.textContent = `Lap ${p.lap || 1}/${p.totalLaps || 3}`;
-        lapEl.className = 'lane-lap' + (p.lap === 3 ? ' lap-final' : '');
+      // Win counter
+      if (winsEl) {
+        const w = p.roundWins || 0;
+        winsEl.textContent = w === 1 ? '1 win' : `${w} wins`;
+        winsEl.className = 'lane-wins' + (w > 0 ? ' has-wins' : '');
       }
 
-      // Map progress 0→1 to 2%→90% so avatar visually reaches the finish line (right:10%)
+      // Map progress 0→1 to 2%→90%
       const pct = 2 + (p.progress * 88);
       avatarEl.style.left = `${pct}%`;
 
-      // Speed display (scaled to look like km/h)
       if (speedEl) speedEl.textContent = `${Math.round(p.speed * 12)} km/h`;
 
-      // Rank display
       if (rankEl) {
         rankEl.textContent = p.rank ? rankLabel(p.rank) : '—';
         rankEl.className = 'lane-rank' +
           (p.rank === 1 ? ' rank-1' : p.rank === 2 ? ' rank-2' : p.rank === 3 ? ' rank-3' : '');
       }
 
-      // Bike + rider bounce animation
       const charEl = avatarEl.querySelector('.avatar-char');
       if (p.speed > 0.3) {
         bikeEl && bikeEl.classList.add('spinning');
@@ -428,7 +419,6 @@
         charEl && charEl.classList.remove('riding');
       }
 
-      // Road dash scroll (motion effect)
       if (dashEl) {
         if (p.speed > 0.3) {
           dashEl.classList.add('moving');
@@ -438,31 +428,73 @@
         }
       }
 
-      // Finish flag waves when player crosses
       if (flagEl && p.finished) flagEl.classList.add('crossed');
     }
   }
 
-  // ── Race summary / winner banner ──────────────────────────────────────────
-  function showWinner(gs) {
+  // ── Round-over overlay ────────────────────────────────────────────────────
+  function showRoundOver(round, totalRounds, players) {
+    const existing = racingPhase.querySelector('.round-over-overlay');
+    if (existing) existing.remove();
+
+    const sorted  = [...players].sort((a, b) => (a.rank || 99) - (b.rank || 99));
+    const medals  = ['🥇', '🥈', '🥉'];
+    const isLast  = round >= totalRounds;
+
+    const rows = sorted.map((p, i) => {
+      const timeStr = p.finishTime ? formatElapsed(p.finishTime) : 'DNF';
+      const wins    = p.roundWins || 0;
+      return `<div class="round-result-row${i === 0 ? ' round-result-winner' : ''}">
+        <span class="round-result-medal">${medals[i] || (i + 1) + 'th'}</span>
+        <span class="round-result-name">${p.emoji} <span style="color:${p.color}">${esc(p.name)}</span></span>
+        <span class="round-result-time">${timeStr}</span>
+        <span class="round-result-wins">${wins > 0 ? '🏆'.repeat(wins) : ''}</span>
+      </div>`;
+    }).join('');
+
+    const overlay = document.createElement('div');
+    overlay.className = 'round-over-overlay';
+    overlay.innerHTML = `
+      <div class="round-over-content">
+        <div class="round-over-title">🏁 Round ${round} Complete!</div>
+        <div class="round-result-rows">${rows}</div>
+        <div class="round-over-next">${isLast ? 'Final round done! Calculating results…' : `Round ${round + 1} starts in a moment!`}</div>
+      </div>
+    `;
+    racingPhase.appendChild(overlay);
+  }
+
+  // ── Final winner banner ───────────────────────────────────────────────────
+  function showWinner(rankings) {
     raceOver = true;
     if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
 
-    const sorted = [...gs.players].sort((a, b) => (a.rank || 99) - (b.rank || 99));
+    // Remove any round-over overlay
+    const ro = racingPhase.querySelector('.round-over-overlay');
+    if (ro) ro.remove();
+
+    const sorted = [...rankings].sort((a, b) => a.rank - b.rank);
     const first  = sorted[0];
     if (!first) return;
 
-    const medals = ['🥇', '🥈', '🥉'];
+    const medals      = ['🥇', '🥈', '🥉'];
+    const roundCount  = first.roundRanks.length;
+
+    // Build round-by-round columns header
+    const roundCols = Array.from({ length: roundCount }, (_, i) => `R${i + 1}`).join('</div><div class="summary-round-col">');
 
     const summaryRows = sorted.map((p, i) => {
-      const timeStr   = p.finishTime ? formatElapsed(p.finishTime) : '—';
-      const bestLapStr = p.bestLap   ? `⚡ ${formatElapsed(p.bestLap)}` : '';
-      const isWinner  = i === 0;
+      const roundCells = p.roundRanks.map((r, ri) => {
+        const t    = p.roundTimes[ri];
+        const timeStr = t ? formatElapsed(t) : 'DNF';
+        return `<div class="summary-round-col ${r === 1 ? 'round-win' : ''}">${medals[r - 1] || r + 'th'}<br><small>${timeStr}</small></div>`;
+      }).join('');
+      const isWinner = i === 0;
       return `<div class="summary-row${isWinner ? ' summary-row-winner' : ''}">
         <div class="summary-medal">${medals[i] || (i + 1) + 'th'}</div>
         <div class="summary-avatar">${p.emoji} <span class="summary-name-text" style="color:${p.color}">${esc(p.name)}</span></div>
-        <div class="summary-time">${timeStr}</div>
-        <div class="summary-bestlap">${bestLapStr}</div>
+        ${roundCells}
+        <div class="summary-wins">${'🏆'.repeat(p.roundWins)}</div>
       </div>`;
     }).join('');
 
@@ -472,17 +504,17 @@
       <div class="winner-content">
         <div class="winner-top">
           <div class="winner-trophy">🏆</div>
-          <div class="winner-label">WINNER!</div>
+          <div class="winner-label">CHAMPION!</div>
           <div class="winner-name" style="color:${first.color}">${esc(first.name)}</div>
           <div class="winner-emoji">${first.emoji} 🚲</div>
         </div>
         <div class="race-summary">
-          <div class="race-summary-header">🏁 Race Results — 3 Laps</div>
+          <div class="race-summary-header">🏁 Final Results — 3 Rounds</div>
           <div class="race-summary-cols">
             <div class="summary-col-label"></div>
             <div class="summary-col-label"></div>
-            <div class="summary-col-label">Total Time</div>
-            <div class="summary-col-label">Best Lap</div>
+            ${Array.from({ length: roundCount }, (_, i) => `<div class="summary-col-label summary-round-col">Round ${i + 1}</div>`).join('')}
+            <div class="summary-col-label">Wins</div>
           </div>
           <div class="race-summary-rows">${summaryRows}</div>
         </div>
@@ -532,35 +564,70 @@
   });
 
   socket.on('bike_race_started', (gs) => {
+    // Remove any overlays from previous round
+    const ro     = racingPhase.querySelector('.round-over-overlay');
+    const banner = racingPhase.querySelector('.winner-banner');
+    if (ro)     ro.remove();
+    if (banner) banner.remove();
+
     // Reset commentary state
     lastLeaderName = null;
     commentFinished.clear();
-    lastPlayerLaps.clear();
     lastCommentAt  = 0;
+    currentRound   = gs.currentRound || 1;
 
+    const label  = currentRound === 1 ? 'Race starts in…' : `Round ${currentRound} starts in…`;
     const racers = gs.players;
-    runCountdown(racers, () => {
-      buildRaceTrack(racers);
+
+    runCountdown(racers, label, () => {
+      if (currentRound === 1) {
+        buildRaceTrack(racers);
+      } else {
+        resetTrackForRound(racers);
+      }
       showPhase('racingPhase');
+      hudRound.textContent = `Round ${gs.currentRound}/${gs.totalRounds}`;
       raceOver = false;
       startElapsedTimer();
       updateRace(gs);
-      // Opening commentary with brief delay after GO
-      setTimeout(() => say(pickRandom(LINES.start), 3000), 800);
+      const isLastRound = gs.currentRound === gs.totalRounds;
+      const startLines  = isLastRound
+        ? [(r, t) => `🔥 FINAL ROUND — Round ${r} of ${t}! Everything on the line!`]
+        : LINES.start;
+      if (isLastRound) {
+        setTimeout(() => say(LINES.roundStart[2](gs.currentRound, gs.totalRounds), 3500), 800);
+      } else if (currentRound === 1) {
+        setTimeout(() => say(pickRandom(LINES.start), 3000), 800);
+      } else {
+        setTimeout(() => say(LINES.roundStart[0](gs.currentRound, gs.totalRounds), 2800), 800);
+      }
     });
   });
 
   socket.on('bike_race_state', (gs) => {
     if (!racingPhase.classList.contains('active')) return;
     updateRace(gs);
-    if (gs.over && !raceOver) showWinner(gs);
+  });
+
+  socket.on('bike_race_round_over', ({ round, totalRounds, players }) => {
+    raceOver = true;
+    if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+    commentatorStrip.classList.remove('speaking');
+    showRoundOver(round, totalRounds, players);
+  });
+
+  socket.on('bike_race_game_over', ({ winner, rankings }) => {
+    showWinner(rankings);
   });
 
   socket.on('play_again', () => {
     raceOver = false;
+    currentRound = 1;
     if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
-    const banner = racingPhase.querySelector('.winner-banner');
-    if (banner) banner.remove();
+    const banner  = racingPhase.querySelector('.winner-banner');
+    const overlay = racingPhase.querySelector('.round-over-overlay');
+    if (banner)  banner.remove();
+    if (overlay) overlay.remove();
     commentatorStrip.classList.remove('speaking');
     showPhase('lobbyPhase');
   });

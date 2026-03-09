@@ -111,12 +111,12 @@
       flex-shrink: 0;
     }
     .hud-name  { font-size: 16px; font-weight: 700; }
-    .hud-lap   {
-      font-size: 13px; font-weight: 800; color: #4ecca3;
-      background: rgba(78,204,163,0.15); border-radius: 8px;
+    .hud-round {
+      font-size: 13px; font-weight: 800; color: #f39c12;
+      background: rgba(243,156,18,0.15); border-radius: 8px;
       padding: 2px 8px; letter-spacing: 0.5px;
     }
-    .hud-lap.final-lap { color: #ff6b35; background: rgba(255,107,53,0.15); }
+    .hud-round.final-round { color: #ff6b35; background: rgba(255,107,53,0.15); }
     .hud-rank  { font-size: 18px; font-weight: 900; color: #f39c12; }
     .hud-rank.first  { color: #ffd700; }
     .hud-rank.second { color: #c0c0c0; }
@@ -275,10 +275,14 @@
       border: 1px solid rgba(255,215,0,0.3);
       font-weight: 800;
     }
+    .result-header { opacity: 0.5; font-size: 11px; }
     .result-medal { font-size: 18px; width: 24px; }
     .result-name  { flex: 1; }
-    .result-time  { color: #aaa; font-size: 13px; }
-    .result-best  { color: #4ecca3; font-size: 12px; }
+    .result-round { font-size: 11px; color: #aaa; text-align: center; line-height: 1.4; width: 46px; }
+    .result-round small { font-size: 10px; color: #666; }
+    .result-round.result-round-win { color: #ffd700; font-weight: 800; }
+    .result-round-hdr { font-size: 11px; color: #666; text-align: center; width: 46px; }
+    .result-wins { font-size: 14px; text-align: center; min-width: 36px; }
 
     .race-again-btn {
       margin-top: 8px;
@@ -330,7 +334,7 @@
   <div id="gameScreen" class="screen">
     <div class="game-hud">
       <span class="hud-name" id="hudName"></span>
-      <span class="hud-lap" id="hudLap">Lap 1/3</span>
+      <span class="hud-round" id="hudRound">Round 1/3</span>
       <span class="hud-rank" id="hudRank">—</span>
     </div>
     <div class="progress-section">
@@ -415,7 +419,7 @@
   const finSub           = document.getElementById('finSub');
   const finTime          = document.getElementById('finTime');
   const raceResults      = document.getElementById('raceResults');
-  const hudLap           = document.getElementById('hudLap');
+  const hudRound         = document.getElementById('hudRound');
   const raceAgainBtn     = document.getElementById('raceAgainBtn');
   const reconnectOverlay = document.getElementById('reconnectOverlay');
 
@@ -542,11 +546,11 @@
     const speedPct = Math.min(100, (ps.speed / MAX_SPEED) * 100);
     speedFill.style.width = `${speedPct}%`;
 
-    // Lap indicator
-    if (hudLap && ps.lap) {
-      const total = ps.totalLaps || 3;
-      hudLap.textContent = `Lap ${ps.lap}/${total}`;
-      hudLap.className = 'hud-lap' + (ps.lap === total ? ' final-lap' : '');
+    // Round indicator
+    if (hudRound && ps.currentRound) {
+      const total = ps.totalRounds || 3;
+      hudRound.textContent = `Round ${ps.currentRound}/${total}`;
+      hudRound.className = 'hud-round' + (ps.currentRound === total ? ' final-round' : '');
     }
 
     // Rank
@@ -614,15 +618,21 @@
     joinBtn.disabled = false;
   });
 
-  socket.on('bike_race_started', () => {
-    gameActive = false;
-    lastPedal  = null;
+  socket.on('bike_race_started', (gs) => {
+    gameActive    = false;
+    lastPedal     = null;
     nextPedalSide = null;
     updatePedalHighlight();
+    progressFill.style.width = '0%';
+    speedFill.style.width    = '0%';
+    // Update round display before countdown
+    if (hudRound && gs && gs.currentRound) {
+      hudRound.textContent = `Round ${gs.currentRound}/${gs.totalRounds || 3}`;
+      hudRound.className   = 'hud-round' + (gs.currentRound === (gs.totalRounds || 3) ? ' final-round' : '');
+    }
     runPhoneCountdown(() => {
-      gameActive = true;
+      gameActive    = true;
       showScreen('gameScreen');
-      // Highlight left pedal first
       nextPedalSide = 'left';
       updatePedalHighlight();
     });
@@ -649,28 +659,65 @@
     }
   });
 
+  socket.on('bike_race_round_over', ({ round, totalRounds, players }) => {
+    gameActive = false;
+    lastPedal     = null;
+    nextPedalSide = null;
+    updatePedalHighlight();
+    // Find my result for this round
+    const mine = players && players.find(p => p.name === myName);
+    const rank  = mine ? mine.rank : null;
+    const time  = mine ? mine.finishTime : null;
+    const medals = ['🥇', '🥈', '🥉'];
+    const rankStr = rank ? (medals[rank - 1] || rank + 'th') : '—';
+    const isLast  = round >= totalRounds;
+    waitRacer.textContent = myEmoji + ' 🚲';
+    waitTitle.textContent = `Round ${round} done! You finished ${rankStr}`;
+    const sub = document.querySelector('.wait-sub');
+    if (sub) sub.textContent = isLast ? 'All rounds done! Final results coming…' : `Round ${round + 1} starts soon — get ready!`;
+    showScreen('waitScreen');
+  });
+
   socket.on('bike_race_game_over', ({ winner, rankings }) => {
     gameActive = false;
+    const medals  = ['🥇', '🥈', '🥉'];
+    const sorted  = [...rankings].sort((a, b) => a.rank - b.rank);
+    const myEntry = sorted.find(r => r.name === myName);
+
+    // Show overall finished screen if not already on it
     if (!finishedScreen.classList.contains('active')) {
-      // Player didn't finish in time
-      const myRanking = rankings && rankings.find(r => r.name === myName);
-      const rank = myRanking ? myRanking.rank : null;
-      showFinished({ finished: true, rank, finishTime: myRanking?.finishTime || null });
+      showFinished({ finished: true, rank: myEntry?.rank, finishTime: null });
     }
-    // Show full results table
-    if (raceResults && rankings) {
-      const medals = ['🥇', '🥈', '🥉'];
-      const sorted = [...rankings].sort((a, b) => (a.rank || 99) - (b.rank || 99));
-      raceResults.innerHTML = `<div class="race-results-title">🏁 Final Results — 3 Laps</div>` +
+
+    // Update sub message to show overall rank
+    if (myEntry) {
+      finSub.textContent = myEntry.rank === 1 ? '🏆 You are the Champion!' : `You finished ${rankLabel(myEntry.rank)} overall`;
+    }
+
+    // Full results table with round breakdown
+    if (raceResults && sorted.length) {
+      const roundCount = sorted[0].roundRanks ? sorted[0].roundRanks.length : 0;
+      const roundHeaders = Array.from({ length: roundCount }, (_, i) =>
+        `<span class="result-round-hdr">R${i + 1}</span>`).join('');
+
+      raceResults.innerHTML = `<div class="race-results-title">🏁 Final Results — ${roundCount} Rounds</div>
+        <div class="result-row result-header">
+          <span class="result-medal"></span>
+          <span class="result-name"></span>
+          ${roundHeaders}
+          <span class="result-wins">Wins</span>
+        </div>` +
         sorted.map((r, i) => {
-          const timeStr = r.finishTime ? formatElapsed(r.finishTime) : '—';
-          const bestStr = r.bestLap    ? `⚡ ${formatElapsed(r.bestLap)}` : '';
-          const isMe    = r.name === myName;
+          const isMe     = r.name === myName;
+          const roundCells = (r.roundRanks || []).map((rk, ri) => {
+            const t = r.roundTimes?.[ri];
+            return `<span class="result-round${rk === 1 ? ' result-round-win' : ''}">${medals[rk - 1] || rk + 'th'}<br><small>${t ? formatElapsed(t) : 'DNF'}</small></span>`;
+          }).join('');
           return `<div class="result-row${isMe ? ' me' : ''}">
             <span class="result-medal">${medals[i] || (i + 1) + 'th'}</span>
             <span class="result-name">${r.emoji || ''} <span style="color:${r.color || '#fff'}">${r.name}</span></span>
-            <span class="result-time">${timeStr}</span>
-            <span class="result-best">${bestStr}</span>
+            ${roundCells}
+            <span class="result-wins">${'🏆'.repeat(r.roundWins || 0) || '—'}</span>
           </div>`;
         }).join('');
       raceResults.style.display = 'block';
@@ -684,7 +731,7 @@
     updatePedalHighlight();
     progressFill.style.width = '0%';
     speedFill.style.width    = '0%';
-    if (hudLap) { hudLap.textContent = 'Lap 1/3'; hudLap.className = 'hud-lap'; }
+    if (hudRound) { hudRound.textContent = 'Round 1/3'; hudRound.className = 'hud-round'; }
     if (raceResults) { raceResults.innerHTML = ''; raceResults.style.display = 'none'; }
     raceAgainBtn.disabled    = false;
     raceAgainBtn.textContent = '🔄 Race Again!';
@@ -697,7 +744,7 @@
     const rank = ps.rank || 1;
     const medals = ['🥇', '🥈', '🥉'];
     const emojis = { 1: '🎉', 2: '🙌', 3: '💪', 4: '😅', 5: '😤', 6: '😤' };
-    const messages = { 1: '3 laps done — You WON! 🏆', 2: 'Great race! So close!', 3: 'Nice effort! Well done!', 4: 'Good effort! Keep training!', 5: 'Keep pedaling next time!', 6: 'Better luck next race!' };
+    const messages = { 1: '🏆 You\'re the Champion!', 2: 'Great racing! So close!', 3: 'Nice effort! Well done!', 4: 'Good effort! Keep training!', 5: 'Keep pedaling next time!', 6: 'Better luck next race!' };
 
     finEmoji.textContent = emojis[rank] || '🏁';
     finTitle.textContent = rank === 1 ? 'You Won!' : 'Race Finished!';

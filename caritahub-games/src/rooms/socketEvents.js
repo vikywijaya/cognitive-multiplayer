@@ -409,15 +409,31 @@ function bikeRaceTick(io, roomId) {
     if (ps) io.to(rp.socketId).emit('bike_race_player_state', ps);
   }
 
-  if (gs.over) {
+  if (gs.roundOver && !gs.over) {
+    // Round finished, more rounds remain — stop tick and schedule next round
+    clearInterval(bikeRaceTimers.get(roomId));
+    bikeRaceTimers.delete(roomId);
+    io.to(roomId).emit('bike_race_round_over', {
+      round:       gs.currentRound,
+      totalRounds: gs.totalRounds,
+      players:     gs.players,
+    });
+    // Auto-start next round after 5 s
+    setTimeout(() => {
+      const eng = engines.get(roomId);
+      if (!eng) return; // play_again cancelled it
+      eng.startNextRound();
+      const nextGs = eng.state();
+      io.to(roomId).emit('bike_race_started', nextGs);
+      const timer = setInterval(() => bikeRaceTick(io, roomId), 100);
+      bikeRaceTimers.set(roomId, timer);
+    }, 5000);
+
+  } else if (gs.over) {
     clearInterval(bikeRaceTimers.get(roomId));
     bikeRaceTimers.delete(roomId);
     const winnerName = engine.winner();
-    const rankings = gs.players.map(p => ({
-      name: p.name, emoji: p.emoji, color: p.color,
-      rank: p.rank, finishTime: p.finishTime,
-      bestLap: p.bestLap, lapTimes: p.lapTimes,
-    }));
+    const rankings   = engine.overallRankings();
     io.to(roomId).emit('bike_race_game_over', { winner: winnerName, rankings });
     if (winnerName) leaderboard.recordWin('bike-race', winnerName);
     engines.delete(roomId);
