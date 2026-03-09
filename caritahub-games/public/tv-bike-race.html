@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TV Bike Race!</title>
+  <link rel="stylesheet" href="/css/tv-bike-race.css" />
+</head>
+<body>
+
+  <!-- ── Lobby Phase ─────────────────────────────────── -->
+  <div id="lobbyPhase" class="phase active">
+    <div class="lobby-title">🚲 Bike Race!</div>
+    <div class="lobby-subtitle">Scan with your phone to join — pedal fast to win!</div>
+    <div class="lobby-body">
+      <div class="qr-section">
+        <div class="qr-box"><div id="qrcode"></div></div>
+        <div class="qr-instruction">Scan with phone camera</div>
+        <div id="joinUrl" class="qr-url"></div>
+      </div>
+      <div class="player-section">
+        <div class="player-section-title">🏁 Racers Ready</div>
+        <div id="lobbyPlayerList" class="player-list">
+          <div class="player-empty">Waiting for racers…</div>
+        </div>
+        <button id="startBtn" class="start-btn" disabled>Start Race!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Countdown Phase ────────────────────────────── -->
+  <div id="countdownPhase" class="phase">
+    <div class="countdown-container">
+      <div class="countdown-label">Race starts in…</div>
+      <div class="countdown-number" id="countdownNum">3</div>
+      <div class="countdown-racers" id="countdownRacers"></div>
+    </div>
+  </div>
+
+  <!-- ── Racing Phase ───────────────────────────────── -->
+  <div id="racingPhase" class="phase">
+    <div class="race-hud">
+      <span class="hud-title">🚲 Bike Race!</span>
+      <span class="hud-leader" id="hudLeader">—</span>
+      <span class="hud-laps" id="hudElapsed">0:00</span>
+    </div>
+    <div class="spectator-row" id="spectatorsTop"></div>
+    <div class="race-track-container" id="raceTrackContainer"></div>
+    <div class="spectator-row" id="spectatorsBottom"></div>
+  </div>
+
+  <!-- Reconnect overlay -->
+  <div id="reconnectOverlay" class="reconnect-overlay hidden">Connection lost. Reconnecting…</div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script>
+  'use strict';
+
+  const socket = io({ transports: ['websocket', 'polling'] });
+
+  // ── DOM refs ──────────────────────────────────────────────────────────────
+  const lobbyPhase       = document.getElementById('lobbyPhase');
+  const countdownPhase   = document.getElementById('countdownPhase');
+  const racingPhase      = document.getElementById('racingPhase');
+  const lobbyPlayerList  = document.getElementById('lobbyPlayerList');
+  const startBtn         = document.getElementById('startBtn');
+  const joinUrlEl        = document.getElementById('joinUrl');
+  const countdownNum     = document.getElementById('countdownNum');
+  const countdownRacers  = document.getElementById('countdownRacers');
+  const raceTrackContainer = document.getElementById('raceTrackContainer');
+  const hudLeader        = document.getElementById('hudLeader');
+  const hudElapsed       = document.getElementById('hudElapsed');
+  const spectatorsTop    = document.getElementById('spectatorsTop');
+  const spectatorsBottom = document.getElementById('spectatorsBottom');
+  const reconnectOverlay = document.getElementById('reconnectOverlay');
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  let myRoomId     = null;
+  let myColor      = null;
+  let currentPlayers = [];
+  let racerOrder   = [];       // ordered player ids for lane layout
+  let elapsedTimer = null;
+  let startedAt    = null;
+  let raceOver     = false;
+
+  const SPECTATORS   = ['🧑', '👦', '👧', '🧒', '👴', '👵', '🧑‍🦱', '🧑‍🦳'];
+  const TRACK_LENGTH = 2000;
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function showPhase(id) {
+    [lobbyPhase, countdownPhase, racingPhase].forEach(p => p.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function esc(s) {
+    return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
+  }
+
+  function formatElapsed(ms) {
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+  }
+
+  function rankLabel(n) {
+    const s = ['', '1st', '2nd', '3rd', '4th', '5th', '6th'];
+    return s[n] || `${n}th`;
+  }
+
+  // ── Spectators decoration ─────────────────────────────────────────────────
+  function buildSpectators() {
+    const count = 18;
+    let html = '';
+    for (let i = 0; i < count; i++) {
+      html += SPECTATORS[Math.floor(Math.random() * SPECTATORS.length)];
+      html += ' ';
+    }
+    spectatorsTop.textContent = html;
+    spectatorsBottom.textContent = html;
+  }
+
+  // ── QR Code ───────────────────────────────────────────────────────────────
+  function buildQR(roomId) {
+    const url = `${location.protocol}//${location.host}/tv-bike-race-play?room=${roomId}`;
+    joinUrlEl.textContent = url;
+    new QRCode(document.getElementById('qrcode'), {
+      text: url, width: 200, height: 200,
+      colorDark: '#000', colorLight: '#fff'
+    });
+  }
+
+  // ── Lobby: player list ────────────────────────────────────────────────────
+  function updateLobbyPlayers(players) {
+    const racers = players.filter(p => p.color !== 'tv-host');
+    if (!racers.length) {
+      lobbyPlayerList.innerHTML = '<div class="player-empty">Waiting for racers…</div>';
+      startBtn.disabled = true;
+      return;
+    }
+
+    const EMOJIS = ['🐢', '🐇', '🦊', '🐻', '🦔', '🐼'];
+    const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
+    lobbyPlayerList.innerHTML = racers.map((p, i) => `
+      <div class="player-row" style="--pcolor:${COLORS[i] || '#fff'}">
+        <span class="player-row-emoji">${EMOJIS[i] || '🚲'}</span>
+        <span class="player-row-name">${esc(p.name)}</span>
+        <span class="player-row-ready">Ready!</span>
+      </div>
+    `).join('');
+
+    startBtn.disabled = racers.length < 1;
+  }
+
+  // ── Countdown animation ───────────────────────────────────────────────────
+  function runCountdown(players, cb) {
+    showPhase('countdownPhase');
+
+    // Build racer preview
+    const EMOJIS = ['🐢', '🐇', '🦊', '🐻', '🦔', '🐼'];
+    countdownRacers.innerHTML = players.map((p, i) => `
+      <div class="countdown-racer" style="animation-delay:${i * 0.15}s">
+        <span class="countdown-racer-emoji">${EMOJIS[i] || '🚲'}</span>
+        <span class="countdown-racer-name" style="color:${p.color}">${esc(p.name)}</span>
+      </div>
+    `).join('');
+
+    let count = 3;
+    const COLORS_CD = ['#e74c3c', '#f39c12', '#2ecc71'];
+
+    function tick() {
+      countdownNum.className = 'countdown-number';
+      if (count > 0) {
+        countdownNum.textContent = count;
+        countdownNum.style.color = COLORS_CD[count - 1] || '#fff';
+        void countdownNum.offsetWidth; // force reflow to restart animation
+        countdownNum.className = 'countdown-number';
+        count--;
+        setTimeout(tick, 900);
+      } else {
+        countdownNum.textContent = 'GO!';
+        countdownNum.className = 'countdown-number go';
+        setTimeout(cb, 700);
+      }
+    }
+    tick();
+  }
+
+  // ── Build race track lanes ────────────────────────────────────────────────
+  function buildRaceTrack(players) {
+    racerOrder = players.map(p => p.id);
+    buildSpectators();
+
+    raceTrackContainer.innerHTML = '';
+
+    for (const p of players) {
+      const lane = document.createElement('div');
+      lane.className = 'player-lane';
+      lane.id = `lane-${p.id}`;
+      lane.innerHTML = `
+        <div class="lane-info">
+          <div class="lane-rank" id="rank-${p.id}">—</div>
+          <div class="lane-name" style="color:${p.color}">${esc(p.name)}</div>
+          <div class="lane-speed" id="speed-${p.id}">0 km/h</div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;border-radius:6px;">
+          <div class="lane-grass-top"></div>
+          <div class="lane-road" id="road-${p.id}">
+            <div class="lane-dashes" id="dashes-${p.id}"></div>
+            <div class="road-finish-line"></div>
+            <div class="lane-avatar" id="avatar-${p.id}" style="left:2%">
+              <div class="avatar-char">${p.emoji}</div>
+              <div class="avatar-bike" id="bike-${p.id}">🚲</div>
+            </div>
+          </div>
+          <div class="lane-grass-bottom"></div>
+        </div>
+        <div class="lane-finish">
+          <div class="finish-flag" id="flag-${p.id}">🏁</div>
+        </div>
+      `;
+      raceTrackContainer.appendChild(lane);
+    }
+  }
+
+  // ── Update race state ─────────────────────────────────────────────────────
+  function updateRace(gs) {
+    if (!gs.players) return;
+
+    // Update elapsed timer
+    if (gs.elapsed !== undefined) {
+      hudElapsed.textContent = formatElapsed(gs.elapsed);
+    }
+
+    // Sort to find leader
+    const sorted = [...gs.players].sort((a, b) => b.position - a.position);
+    if (sorted.length) {
+      const leader = sorted[0];
+      hudLeader.textContent = `🥇 ${leader.name} leads!`;
+    }
+
+    for (const p of gs.players) {
+      const avatarEl = document.getElementById(`avatar-${p.id}`);
+      const bikeEl   = document.getElementById(`bike-${p.id}`);
+      const rankEl   = document.getElementById(`rank-${p.id}`);
+      const speedEl  = document.getElementById(`speed-${p.id}`);
+      const dashEl   = document.getElementById(`dashes-${p.id}`);
+      const flagEl   = document.getElementById(`flag-${p.id}`);
+      if (!avatarEl) continue;
+
+      // Position: map 0-TRACK_LENGTH to 2%-88% to stay within road bounds
+      const pct = 2 + (p.progress * 86);
+      avatarEl.style.left = `${Math.min(88, pct)}%`;
+
+      // Speed display
+      const kmh = Math.round(p.speed * 12); // scale to look like km/h
+      if (speedEl) speedEl.textContent = `${kmh} km/h`;
+
+      // Rank display
+      if (rankEl) {
+        rankEl.textContent = p.rank ? rankLabel(p.rank) : '—';
+        rankEl.className = 'lane-rank' + (p.rank === 1 ? ' rank-1' : p.rank === 2 ? ' rank-2' : p.rank === 3 ? ' rank-3' : '');
+      }
+
+      // Bike wheel animation: spin when moving
+      if (bikeEl) {
+        if (p.speed > 0.3) {
+          bikeEl.classList.add('spinning');
+          // Animate speed of spinning based on speed
+          const dur = Math.max(0.1, 0.4 - p.speed * 0.02);
+          bikeEl.style.animationDuration = `${dur}s`;
+        } else {
+          bikeEl.classList.remove('spinning');
+        }
+      }
+
+      // Road dash scrolling
+      if (dashEl) {
+        if (p.speed > 0.3) {
+          dashEl.classList.add('moving');
+          const scrollDur = Math.max(0.1, 0.5 - p.speed * 0.03);
+          dashEl.style.animationDuration = `${scrollDur}s`;
+        } else {
+          dashEl.classList.remove('moving');
+        }
+      }
+
+      // Finish flag
+      if (flagEl && p.finished) {
+        flagEl.classList.add('crossed');
+      }
+    }
+  }
+
+  // ── Show winner banner ────────────────────────────────────────────────────
+  function showWinner(gs) {
+    raceOver = true;
+    if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+
+    const sorted = [...gs.players].sort((a, b) => (a.rank || 99) - (b.rank || 99));
+    const first  = sorted[0];
+    if (!first) return;
+
+    const podiumHtml = sorted.slice(0, 3).map((p, i) => {
+      const medals = ['🥇', '🥈', '🥉'];
+      const timeStr = p.finishTime ? formatElapsed(p.finishTime) : '—';
+      return `<div class="podium-item">
+        <div class="podium-rank">${medals[i]}</div>
+        <div class="podium-emoji">${p.emoji}</div>
+        <div class="podium-name" style="color:${p.color}">${esc(p.name)}</div>
+        <div class="podium-time">${timeStr}</div>
+      </div>`;
+    }).join('');
+
+    const banner = document.createElement('div');
+    banner.className = 'winner-banner';
+    banner.innerHTML = `
+      <div class="winner-content">
+        <div class="winner-trophy">🏆</div>
+        <div class="winner-label">WINNER!</div>
+        <div class="winner-name" style="color:${first.color}">${esc(first.name)}</div>
+        <div class="winner-emoji">${first.emoji} 🚲</div>
+        <div class="winner-podium">${podiumHtml}</div>
+        <button class="play-again-btn" id="playAgainBtn">Play Again</button>
+      </div>
+    `;
+    racingPhase.appendChild(banner);
+
+    document.getElementById('playAgainBtn').addEventListener('click', () => {
+      socket.emit('play_again');
+    });
+  }
+
+  // ── Start elapsed timer ───────────────────────────────────────────────────
+  function startElapsedTimer() {
+    startedAt = Date.now();
+    elapsedTimer = setInterval(() => {
+      if (raceOver) { clearInterval(elapsedTimer); return; }
+      hudElapsed.textContent = formatElapsed(Date.now() - startedAt);
+    }, 500);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  //  SOCKET EVENTS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  socket.on('connect', () => {
+    reconnectOverlay.classList.add('hidden');
+    if (!myRoomId) {
+      // TV Host joins its own room
+      socket.emit('join_game', { gameType: 'bike-race', playerName: 'TV Host' });
+    } else {
+      socket.emit('join_game', { gameType: 'bike-race', playerName: 'TV Host', roomId: myRoomId, reconnect: true });
+    }
+  });
+
+  socket.on('disconnect', () => reconnectOverlay.classList.remove('hidden'));
+
+  socket.on('joined', ({ roomId, color }) => {
+    myRoomId = roomId; myColor = color;
+    buildQR(roomId);
+  });
+
+  socket.on('room_update', ({ players }) => {
+    if (!racingPhase.classList.contains('active')) {
+      updateLobbyPlayers(players);
+    }
+  });
+
+  startBtn.addEventListener('click', () => {
+    socket.emit('start_game');
+    startBtn.disabled = true;
+  });
+
+  socket.on('bike_race_started', (gs) => {
+    const racers = gs.players;
+    runCountdown(racers, () => {
+      buildRaceTrack(racers);
+      showPhase('racingPhase');
+      raceOver = false;
+      startElapsedTimer();
+      updateRace(gs);
+    });
+  });
+
+  socket.on('bike_race_state', (gs) => {
+    if (!racingPhase.classList.contains('active')) return;
+    updateRace(gs);
+    if (gs.over && !raceOver) showWinner(gs);
+  });
+
+  socket.on('play_again', () => {
+    raceOver = false;
+    if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
+    // Clear winner banner if present
+    const banner = racingPhase.querySelector('.winner-banner');
+    if (banner) banner.remove();
+    showPhase('lobbyPhase');
+  });
+
+  socket.on('error', ({ message }) => {
+    console.warn('Error:', message);
+    startBtn.disabled = false;
+  });
+  </script>
+</body>
+</html>

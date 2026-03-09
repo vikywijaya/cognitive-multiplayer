@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>Bike Race! — Pedal!</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; min-height: 100vh; overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: #0a1628; color: #fff;
+      -webkit-text-size-adjust: 100%;
+      touch-action: manipulation;
+    }
+
+    .screen { display: none; min-height: 100vh; flex-direction: column; }
+    .screen.active { display: flex; }
+
+    /* ── Join screen ── */
+    #joinScreen {
+      align-items: center; justify-content: center;
+      padding: 32px 24px; gap: 18px;
+      background: linear-gradient(160deg, #0a1628 0%, #1a2e4a 100%);
+    }
+    .join-title { font-size: 32px; font-weight: 900; color: #f39c12; text-align: center; }
+    .join-sub   { font-size: 16px; color: #aaa; text-align: center; }
+    .room-input {
+      width: 100%; max-width: 320px;
+      font-size: 28px; padding: 14px 18px;
+      border: 3px solid #4ecca3; border-radius: 12px;
+      background: rgba(255,255,255,0.07); color: #fff;
+      text-align: center; outline: none; text-transform: uppercase; letter-spacing: 4px;
+    }
+    .room-input::placeholder { color: #555; letter-spacing: 1px; text-transform: none; }
+    .room-input:focus { border-color: #ffd700; }
+    .name-input {
+      width: 100%; max-width: 320px;
+      font-size: 20px; padding: 14px 18px;
+      border: 3px solid #f39c12; border-radius: 12px;
+      background: rgba(255,255,255,0.07); color: #fff;
+      text-align: center; outline: none;
+    }
+    .name-input::placeholder { color: #555; }
+    .name-input:focus { border-color: #ffd700; }
+    .join-btn {
+      width: 100%; max-width: 320px;
+      font-size: 20px; font-weight: 800; padding: 18px;
+      border: none; border-radius: 12px;
+      background: linear-gradient(90deg, #f39c12, #e74c3c);
+      color: #fff; cursor: pointer;
+    }
+    .join-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .join-btn:active:not(:disabled) { transform: scale(0.97); }
+    .join-error { font-size: 15px; color: #ff6b6b; text-align: center; }
+
+    /* ── Wait screen ── */
+    #waitScreen {
+      align-items: center; justify-content: center; gap: 24px;
+      background: linear-gradient(160deg, #0a1628 0%, #1a2e4a 100%);
+    }
+    .wait-emoji  { font-size: 80px; animation: waitBob 1.4s ease-in-out infinite; }
+    @keyframes waitBob {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-14px); }
+    }
+    .wait-title { font-size: 26px; font-weight: 800; color: #f39c12; text-align: center; }
+    .wait-sub   { font-size: 18px; color: #aaa; text-align: center; padding: 0 24px; }
+    .wait-racer { font-size: 64px; animation: racerWiggle 0.35s ease-in-out infinite alternate; }
+    @keyframes racerWiggle {
+      from { transform: translateY(0) rotate(-5deg); }
+      to   { transform: translateY(-8px) rotate(5deg); }
+    }
+
+    /* ── Countdown screen ── */
+    #countdownScreen {
+      align-items: center; justify-content: center; gap: 12px;
+      background: linear-gradient(160deg, #0a1628 0%, #1a1a2e 100%);
+    }
+    .cd-label  { font-size: 24px; color: #aaa; font-weight: 700; }
+    .cd-number {
+      font-size: 200px; font-weight: 900; line-height: 1;
+      animation: cdPulse 0.9s ease-in-out;
+    }
+    @keyframes cdPulse {
+      0%   { transform: scale(1.5); opacity: 0; }
+      30%  { transform: scale(1.0); opacity: 1; }
+      80%  { transform: scale(1.0); opacity: 1; }
+      100% { transform: scale(0.5); opacity: 0; }
+    }
+    .cd-number.go { color: #2ecc71; font-size: 130px; animation: goPulse 0.7s ease-out forwards; }
+    @keyframes goPulse {
+      0%   { transform: scale(0.5); opacity: 0; }
+      35%  { transform: scale(1.1); opacity: 1; }
+      100% { transform: scale(1.0); opacity: 1; }
+    }
+
+    /* ── Game screen ── */
+    #gameScreen {
+      background: #0a1628;
+      overflow: hidden; height: 100vh;
+    }
+
+    /* HUD bar */
+    .game-hud {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px;
+      background: rgba(0,0,0,0.5);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      flex-shrink: 0;
+    }
+    .hud-name  { font-size: 16px; font-weight: 700; }
+    .hud-rank  { font-size: 18px; font-weight: 900; color: #f39c12; }
+    .hud-rank.first  { color: #ffd700; }
+    .hud-rank.second { color: #c0c0c0; }
+    .hud-rank.third  { color: #cd7f32; }
+
+    /* Progress bar */
+    .progress-section {
+      padding: 10px 16px 6px;
+      flex-shrink: 0;
+    }
+    .progress-label {
+      font-size: 13px; color: #888; margin-bottom: 4px;
+      display: flex; justify-content: space-between;
+    }
+    .progress-track {
+      width: 100%; height: 18px;
+      background: rgba(255,255,255,0.1); border-radius: 9px;
+      overflow: hidden; position: relative;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 9px;
+      transition: width 0.15s linear;
+      background: linear-gradient(90deg, #f39c12, #e74c3c);
+    }
+    .progress-avatar {
+      position: absolute; right: 4px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px; pointer-events: none;
+    }
+
+    /* Speed gauge */
+    .speed-section {
+      padding: 4px 16px 8px;
+      flex-shrink: 0;
+    }
+    .speed-label  { font-size: 13px; color: #888; margin-bottom: 4px; }
+    .speed-bar    {
+      width: 100%; height: 12px;
+      background: rgba(255,255,255,0.08); border-radius: 6px; overflow: hidden;
+    }
+    .speed-fill   {
+      height: 100%; border-radius: 6px;
+      transition: width 0.12s linear;
+      background: linear-gradient(90deg, #3498db, #2ecc71);
+    }
+
+    /* Pedal instruction */
+    .pedal-instruction {
+      text-align: center; padding: 6px 16px;
+      font-size: 15px; color: #aaa; flex-shrink: 0;
+    }
+    .pedal-instruction strong { color: #ffd700; }
+
+    /* Pedal buttons area */
+    .pedal-area {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      gap: 20px; padding: 8px 16px;
+      min-height: 0;
+    }
+
+    /* Pedal button */
+    .pedal-btn {
+      flex: 1; height: 100%; max-height: 240px;
+      border: none; border-radius: 24px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 8px; font-weight: 900;
+      cursor: pointer; outline: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      transition: transform 0.06s, box-shadow 0.1s;
+      position: relative; overflow: hidden;
+    }
+
+    .pedal-btn.left-pedal {
+      background: linear-gradient(145deg, #1a4a8a, #2980b9);
+      box-shadow: 0 8px 30px rgba(41,128,185,0.5), inset 0 2px 0 rgba(255,255,255,0.1);
+      border-bottom: 6px solid #1a5276;
+    }
+    .pedal-btn.right-pedal {
+      background: linear-gradient(145deg, #8a1a1a, #c0392b);
+      box-shadow: 0 8px 30px rgba(192,57,43,0.5), inset 0 2px 0 rgba(255,255,255,0.1);
+      border-bottom: 6px solid #7b241c;
+    }
+
+    .pedal-btn:active {
+      transform: scale(0.91) translateY(4px);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    }
+
+    /* Active "lit up" state */
+    .pedal-btn.active-press {
+      animation: pedalPress 0.18s ease-out;
+    }
+    @keyframes pedalPress {
+      0%   { transform: scale(0.91) translateY(4px); }
+      100% { transform: scale(1.0) translateY(0); }
+    }
+
+    .pedal-icon  { font-size: 64px; pointer-events: none; transition: transform 0.1s; }
+    .pedal-label { font-size: 22px; color: rgba(255,255,255,0.9); pointer-events: none; letter-spacing: 1px; }
+    .pedal-side  { font-size: 14px; color: rgba(255,255,255,0.6); pointer-events: none; letter-spacing: 2px; text-transform: uppercase; }
+
+    /* Alternate indicator — highlight next pedal */
+    .pedal-btn.next-pedal {
+      box-shadow: 0 0 0 4px #ffd700, 0 8px 30px rgba(255,215,0,0.4), inset 0 2px 0 rgba(255,255,255,0.1);
+    }
+    .pedal-btn.next-pedal .pedal-icon {
+      animation: nextBounce 0.5s ease-in-out infinite alternate;
+    }
+    @keyframes nextBounce {
+      from { transform: translateY(0) scale(1); }
+      to   { transform: translateY(-8px) scale(1.08); }
+    }
+
+    /* Boost flash */
+    .boost-flash {
+      position: absolute; inset: 0; border-radius: 24px;
+      background: rgba(255,255,255,0.3);
+      animation: flashFade 0.25s ease-out forwards;
+      pointer-events: none;
+    }
+    @keyframes flashFade {
+      from { opacity: 1; }
+      to   { opacity: 0; }
+    }
+
+    /* Finished / game over */
+    #finishedScreen {
+      align-items: center; justify-content: center; gap: 20px;
+      background: linear-gradient(160deg, #0a1628 0%, #1a2e4a 100%);
+    }
+    .fin-emoji  { font-size: 80px; }
+    .fin-title  { font-size: 36px; font-weight: 900; }
+    .fin-rank   { font-size: 64px; font-weight: 900; color: #ffd700; }
+    .fin-sub    { font-size: 20px; color: #aaa; text-align: center; max-width: 300px; }
+    .fin-time   { font-size: 18px; color: #888; }
+
+    /* Reconnect overlay */
+    .reconnect {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 700; z-index: 999; color: #ff9f43;
+    }
+    .reconnect.hidden { display: none; }
+  </style>
+</head>
+<body>
+
+  <!-- Join -->
+  <div id="joinScreen" class="screen active">
+    <div class="join-title">🚲 Bike Race!</div>
+    <div class="join-sub">Enter the room code shown on the TV</div>
+    <input id="roomInput" class="room-input" type="text" maxlength="8" placeholder="ROOM CODE" autocomplete="off" spellcheck="false" />
+    <input id="nameInput" class="name-input" type="text" maxlength="20" placeholder="Your name" autocomplete="off" />
+    <button id="joinBtn" class="join-btn">Join Race!</button>
+    <div id="joinError" class="join-error"></div>
+  </div>
+
+  <!-- Wait for game to start -->
+  <div id="waitScreen" class="screen">
+    <div class="wait-racer" id="waitRacer">🐢🚲</div>
+    <div class="wait-title" id="waitTitle">Waiting for race to start…</div>
+    <div class="wait-sub">Watch the TV and get ready to pedal!</div>
+  </div>
+
+  <!-- Countdown -->
+  <div id="countdownScreen" class="screen">
+    <div class="cd-label">Get ready!</div>
+    <div class="cd-number" id="cdNum">3</div>
+  </div>
+
+  <!-- Game / Pedaling -->
+  <div id="gameScreen" class="screen">
+    <div class="game-hud">
+      <span class="hud-name" id="hudName"></span>
+      <span class="hud-rank" id="hudRank">—</span>
+    </div>
+    <div class="progress-section">
+      <div class="progress-label">
+        <span>Start</span>
+        <span id="progressPct">0%</span>
+        <span>🏁 Finish</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill" style="width:0%"></div>
+        <div class="progress-avatar" id="progressAvatar">🐢</div>
+      </div>
+    </div>
+    <div class="speed-section">
+      <div class="speed-label">Speed</div>
+      <div class="speed-bar">
+        <div class="speed-fill" id="speedFill" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="pedal-instruction">
+      <strong>TAP LEFT and RIGHT alternately</strong> to pedal faster!
+    </div>
+    <div class="pedal-area">
+      <button class="pedal-btn left-pedal" id="leftPedal" data-side="left">
+        <div class="pedal-icon">🦵</div>
+        <div class="pedal-label">LEFT</div>
+        <div class="pedal-side">◀ Pedal</div>
+      </button>
+      <button class="pedal-btn right-pedal" id="rightPedal" data-side="right">
+        <div class="pedal-icon">🦵</div>
+        <div class="pedal-label">RIGHT</div>
+        <div class="pedal-side">Pedal ▶</div>
+      </button>
+    </div>
+  </div>
+
+  <!-- Finished -->
+  <div id="finishedScreen" class="screen">
+    <div class="fin-emoji" id="finEmoji">🎉</div>
+    <div class="fin-title" id="finTitle">Finished!</div>
+    <div class="fin-rank" id="finRank">🥇</div>
+    <div class="fin-sub" id="finSub">Watch the TV for final results!</div>
+    <div class="fin-time" id="finTime"></div>
+  </div>
+
+  <!-- Reconnect -->
+  <div id="reconnectOverlay" class="reconnect hidden">Reconnecting…</div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+  'use strict';
+
+  const socket = io({ transports: ['websocket', 'polling'] });
+
+  // ── DOM ────────────────────────────────────────────────────────────────
+  const joinScreen       = document.getElementById('joinScreen');
+  const waitScreen       = document.getElementById('waitScreen');
+  const countdownScreen  = document.getElementById('countdownScreen');
+  const gameScreen       = document.getElementById('gameScreen');
+  const finishedScreen   = document.getElementById('finishedScreen');
+  const roomInput        = document.getElementById('roomInput');
+  const nameInput        = document.getElementById('nameInput');
+  const joinBtn          = document.getElementById('joinBtn');
+  const joinError        = document.getElementById('joinError');
+  const waitRacer        = document.getElementById('waitRacer');
+  const waitTitle        = document.getElementById('waitTitle');
+  const cdNum            = document.getElementById('cdNum');
+  const hudName          = document.getElementById('hudName');
+  const hudRank          = document.getElementById('hudRank');
+  const progressFill     = document.getElementById('progressFill');
+  const progressPct      = document.getElementById('progressPct');
+  const progressAvatar   = document.getElementById('progressAvatar');
+  const speedFill        = document.getElementById('speedFill');
+  const leftPedal        = document.getElementById('leftPedal');
+  const rightPedal       = document.getElementById('rightPedal');
+  const finEmoji         = document.getElementById('finEmoji');
+  const finTitle         = document.getElementById('finTitle');
+  const finRank          = document.getElementById('finRank');
+  const finSub           = document.getElementById('finSub');
+  const finTime          = document.getElementById('finTime');
+  const reconnectOverlay = document.getElementById('reconnectOverlay');
+
+  // ── State ─────────────────────────────────────────────────────────────
+  let myName   = '';
+  let myColor  = '';
+  let myEmoji  = '🐢';
+  let myRoomId = null;
+  let gameActive = false;
+  let lastPedal  = null;    // 'left' | 'right' | null
+  let pedalLocked = false;  // short lock after press to prevent duplicate events
+  let nextPedalSide = null; // which pedal to highlight next
+
+  const RANK_LABELS  = ['', '🥇 1st', '🥈 2nd', '🥉 3rd', '4th', '5th', '6th'];
+  const RANK_CLASSES = ['', 'first', 'second', 'third', '', '', ''];
+  const MAX_SPEED    = 10;
+
+  // Pre-fill room code from URL
+  const params = new URLSearchParams(location.search);
+  const preRoom = params.get('room') || '';
+  if (preRoom) roomInput.value = preRoom.toUpperCase();
+
+  // ── Helpers ────────────────────────────────────────────────────────────
+  function showScreen(id) {
+    [joinScreen, waitScreen, countdownScreen, gameScreen, finishedScreen].forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function formatElapsed(ms) {
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+  }
+
+  // ── Countdown on phone ────────────────────────────────────────────────
+  function runPhoneCountdown(cb) {
+    showScreen('countdownScreen');
+    let count = 3;
+    const COLORS = ['#e74c3c', '#f39c12', '#2ecc71'];
+
+    function tick() {
+      cdNum.className = 'cd-number';
+      if (count > 0) {
+        cdNum.textContent = count;
+        cdNum.style.color = COLORS[count - 1];
+        void cdNum.offsetWidth;
+        cdNum.className = 'cd-number';
+        count--;
+        setTimeout(tick, 900);
+      } else {
+        cdNum.textContent = 'GO!';
+        cdNum.className = 'cd-number go';
+        if (navigator.vibrate) navigator.vibrate([100, 50, 200]);
+        setTimeout(cb, 700);
+      }
+    }
+    tick();
+  }
+
+  // ── Pedal button handler ──────────────────────────────────────────────
+  function doPedal(side) {
+    if (!gameActive || pedalLocked) return;
+
+    pedalLocked = true;
+    setTimeout(() => { pedalLocked = false; }, 60); // 60ms lock to prevent duplicates
+
+    const isAlternate = lastPedal !== null && lastPedal !== side;
+    lastPedal = side;
+
+    // Determine which pedal to highlight next
+    nextPedalSide = side === 'left' ? 'right' : 'left';
+    updatePedalHighlight();
+
+    // Visual feedback
+    const btn = side === 'left' ? leftPedal : rightPedal;
+    triggerPedalEffect(btn, isAlternate);
+
+    // Haptic feedback
+    if (navigator.vibrate) {
+      navigator.vibrate(isAlternate ? 50 : 20);
+    }
+
+    // Send to server
+    socket.emit('bike_race_pedal', { side });
+  }
+
+  function triggerPedalEffect(btn, isAlternate) {
+    btn.classList.remove('active-press');
+    void btn.offsetWidth;
+    btn.classList.add('active-press');
+
+    // Flash effect inside button
+    const flash = document.createElement('div');
+    flash.className = 'boost-flash';
+    if (!isAlternate) flash.style.background = 'rgba(255,255,255,0.1)';
+    btn.appendChild(flash);
+    setTimeout(() => flash.remove(), 280);
+  }
+
+  function updatePedalHighlight() {
+    leftPedal.classList.toggle('next-pedal', nextPedalSide === 'left');
+    rightPedal.classList.toggle('next-pedal', nextPedalSide === 'right');
+  }
+
+  // Attach pedal events (touchstart for mobile, click for desktop)
+  [leftPedal, rightPedal].forEach(btn => {
+    const side = btn.dataset.side;
+    btn.addEventListener('touchstart', e => { e.preventDefault(); doPedal(side); }, { passive: false });
+    btn.addEventListener('click', () => doPedal(side));
+  });
+
+  // ── Update HUD from player state ──────────────────────────────────────
+  function updatePlayerState(ps) {
+    if (!ps) return;
+
+    // Progress
+    const pct = Math.round(ps.progress * 100);
+    progressFill.style.width = `${pct}%`;
+    progressPct.textContent  = `${pct}%`;
+    progressAvatar.textContent = myEmoji;
+
+    // Speed
+    const speedPct = Math.min(100, (ps.speed / MAX_SPEED) * 100);
+    speedFill.style.width = `${speedPct}%`;
+
+    // Rank
+    const rank = ps.rank || 1;
+    hudRank.textContent  = RANK_LABELS[rank] || `${rank}th`;
+    hudRank.className    = 'hud-rank ' + (RANK_CLASSES[rank] || '');
+  }
+
+  // ── Join flow ──────────────────────────────────────────────────────────
+  function doJoin() {
+    const room = roomInput.value.trim().toUpperCase();
+    const name = nameInput.value.trim();
+    joinError.textContent = '';
+    if (!room) { joinError.textContent = 'Enter the room code from the TV.'; return; }
+    if (!name) { joinError.textContent = 'Enter your name.'; return; }
+    myName = name; myRoomId = room;
+    joinBtn.disabled = true;
+    socket.emit('join_game', { gameType: 'bike-race', playerName: name, roomId: room });
+  }
+  joinBtn.addEventListener('click', doJoin);
+  nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+  roomInput.addEventListener('keydown', e => { if (e.key === 'Enter') nameInput.focus(); });
+  roomInput.addEventListener('input', () => {
+    roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  });
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  SOCKET EVENTS
+  // ══════════════════════════════════════════════════════════════════════
+
+  socket.on('connect', () => {
+    reconnectOverlay.classList.add('hidden');
+    if (myRoomId && myName) {
+      socket.emit('join_game', { gameType: 'bike-race', playerName: myName, roomId: myRoomId, reconnect: true });
+    }
+  });
+  socket.on('disconnect', () => reconnectOverlay.classList.remove('hidden'));
+
+  socket.on('joined', ({ roomId, color }) => {
+    myRoomId = myRoomId || roomId;
+    myColor  = color;
+    joinBtn.disabled = false;
+
+    // Map color to emoji index (p1→0, p2→1, ...)
+    const EMOJIS = ['🐢', '🐇', '🦊', '🐻', '🦔', '🐼'];
+    const idx = parseInt(color.replace('p', ''), 10) - 1;
+    myEmoji = EMOJIS[Math.max(0, Math.min(5, idx))] || '🐢';
+
+    waitRacer.textContent = myEmoji + ' 🚲';
+    waitTitle.textContent = `Welcome, ${myName}! Waiting for race…`;
+    hudName.textContent   = myName;
+    hudName.style.color   = myColor;
+    progressAvatar.textContent = myEmoji;
+
+    showScreen('waitScreen');
+  });
+
+  socket.on('error', ({ message }) => {
+    joinError.textContent = message;
+    joinBtn.disabled = false;
+  });
+
+  socket.on('bike_race_started', () => {
+    gameActive = false;
+    lastPedal  = null;
+    nextPedalSide = null;
+    updatePedalHighlight();
+    runPhoneCountdown(() => {
+      gameActive = true;
+      showScreen('gameScreen');
+      // Highlight left pedal first
+      nextPedalSide = 'left';
+      updatePedalHighlight();
+    });
+  });
+
+  socket.on('bike_race_player_state', (ps) => {
+    if (!gameActive) return;
+    if (ps.finished) {
+      gameActive = false;
+      showFinished(ps);
+      return;
+    }
+    updatePlayerState(ps);
+  });
+
+  socket.on('bike_race_state', (gs) => {
+    if (!gameActive) return;
+    // Update rank from full state if needed
+    const mine = gs.players && gs.players.find(p => p.name === myName);
+    if (mine) updatePlayerState(mine);
+    // Check if race is over (but player didn't get individual state yet)
+    if (gs.over && gameActive) {
+      gameActive = false;
+    }
+  });
+
+  socket.on('bike_race_game_over', ({ winner, rankings }) => {
+    gameActive = false;
+    if (!finishedScreen.classList.contains('active')) {
+      // Player didn't finish in time
+      const myRanking = rankings && rankings.find(r => r.name === myName);
+      const rank = myRanking ? myRanking.rank : null;
+      showFinished({ finished: true, rank, finishTime: null });
+    }
+  });
+
+  socket.on('play_again', () => {
+    gameActive    = false;
+    lastPedal     = null;
+    nextPedalSide = null;
+    updatePedalHighlight();
+    progressFill.style.width = '0%';
+    speedFill.style.width    = '0%';
+    showScreen('waitScreen');
+    waitTitle.textContent = 'Waiting for new race…';
+  });
+
+  // ── Show finished screen ───────────────────────────────────────────────
+  function showFinished(ps) {
+    const rank = ps.rank || 1;
+    const medals = ['🥇', '🥈', '🥉'];
+    const emojis = { 1: '🎉', 2: '🙌', 3: '💪', 4: '😅', 5: '😤', 6: '😤' };
+    const messages = { 1: 'You won! Amazing pedaling!', 2: 'Great race! So close!', 3: 'Nice effort! Well done!', 4: 'Good effort! Keep training!', 5: 'Keep pedaling next time!', 6: 'Better luck next race!' };
+
+    finEmoji.textContent = emojis[rank] || '🏁';
+    finTitle.textContent = rank === 1 ? 'You Won!' : 'Race Finished!';
+    finRank.textContent  = (medals[rank - 1] || rank + 'th') + ' Place';
+    finRank.style.color  = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#aaa';
+    finSub.textContent   = messages[rank] || 'Race complete!';
+    if (ps.finishTime) {
+      finTime.textContent = `Time: ${formatElapsed(ps.finishTime)}`;
+    }
+    showScreen('finishedScreen');
+  }
+  </script>
+</body>
+</html>
