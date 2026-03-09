@@ -261,16 +261,17 @@
         rankEl.className = 'lane-rank' + (p.rank === 1 ? ' rank-1' : p.rank === 2 ? ' rank-2' : p.rank === 3 ? ' rank-3' : '');
       }
 
-      // Bike wheel animation: spin when moving
-      if (bikeEl) {
-        if (p.speed > 0.3) {
-          bikeEl.classList.add('spinning');
-          // Animate speed of spinning based on speed
-          const dur = Math.max(0.1, 0.4 - p.speed * 0.02);
-          bikeEl.style.animationDuration = `${dur}s`;
-        } else {
-          bikeEl.classList.remove('spinning');
-        }
+      // Bike + rider animation: bounce when moving
+      const charEl = avatarEl.querySelector('.avatar-char');
+      if (p.speed > 0.3) {
+        if (bikeEl) { bikeEl.classList.add('spinning'); }
+        if (charEl) { charEl.classList.add('riding'); }
+        const dur = Math.max(0.12, 0.35 - p.speed * 0.02);
+        if (bikeEl) bikeEl.style.animationDuration = `${dur}s`;
+        if (charEl) charEl.style.animationDuration = `${dur}s`;
+      } else {
+        if (bikeEl) bikeEl.classList.remove('spinning');
+        if (charEl) charEl.classList.remove('riding');
       }
 
       // Road dash scrolling

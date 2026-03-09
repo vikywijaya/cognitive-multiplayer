@@ -174,8 +174,10 @@ html, body {
 /* Individual player lane */
 .player-lane {
   flex: 1; display: flex; align-items: stretch;
-  position: relative; margin: 4px 0;
-  min-height: 90px; max-height: 160px;
+  position: relative; margin: 8px 0;
+  min-height: 110px; max-height: 180px;
+  /* allow oversized avatar to overflow into margin without clipping */
+  overflow: visible;
 }
 
 /* Wrapper column inside the lane (grass + road + grass) */
@@ -224,27 +226,39 @@ html, body {
 .lane-grass-top  { border-radius: 4px 4px 0 0; border-bottom: 2px solid #e74c3c; }
 .lane-grass-bottom { border-radius: 0 0 4px 4px; border-top: 2px solid #e74c3c; }
 
-/* Player avatar on the track */
+/* Player avatar on the track — bigger than the lane so it visually "rides" on top */
 .lane-avatar {
   position: absolute;
   top: 50%;
   left: 2%;
-  transform: translate(0, -50%);
+  transform: translate(0, -60%);   /* shift up so avatar rides above road center */
   transition: left 0.12s linear;
   display: flex; flex-direction: column; align-items: center;
-  z-index: 10; pointer-events: none;
-  line-height: 1;
+  z-index: 20; pointer-events: none;
+  line-height: 1; gap: 0;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.7));
 }
-.avatar-char  { font-size: 30px; display: block; }
-.avatar-bike  {
-  font-size: 20px; display: block;
-  animation: bikeBounce 0.25s ease-in-out infinite alternate;
+/* Person / character riding above the bike */
+.avatar-char {
+  font-size: 48px; display: block;
+  animation: riderBounce 0.28s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+.avatar-char.riding { animation-play-state: running; }
+/* Bike below — extra large so it clearly sticks out of the lane */
+.avatar-bike {
+  font-size: 56px; display: block; margin-top: -10px;
+  animation: bikeBounce 0.28s ease-in-out infinite alternate;
   animation-play-state: paused;
 }
 .avatar-bike.spinning { animation-play-state: running; }
+@keyframes riderBounce {
+  from { transform: translateY(0) rotate(-3deg); }
+  to   { transform: translateY(-6px) rotate(3deg); }
+}
 @keyframes bikeBounce {
-  from { transform: translateY(0); }
-  to   { transform: translateY(-3px); }
+  from { transform: translateY(0) scaleX(1); }
+  to   { transform: translateY(-4px) scaleX(0.97); }
 }
 
 /* Speed dust particles */
