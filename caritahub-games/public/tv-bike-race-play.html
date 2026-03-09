@@ -248,6 +248,17 @@
     .fin-rank   { font-size: 64px; font-weight: 900; color: #ffd700; }
     .fin-sub    { font-size: 20px; color: #aaa; text-align: center; max-width: 300px; }
     .fin-time   { font-size: 18px; color: #888; }
+    .race-again-btn {
+      margin-top: 8px;
+      width: 100%; max-width: 320px;
+      font-size: 20px; font-weight: 800; padding: 18px;
+      border: none; border-radius: 12px;
+      background: linear-gradient(90deg, #2ecc71, #1abc9c);
+      color: #fff; cursor: pointer;
+      box-shadow: 0 6px 24px rgba(46,204,113,0.4);
+      transition: transform 0.1s;
+    }
+    .race-again-btn:active { transform: scale(0.97); }
 
     /* Reconnect overlay */
     .reconnect {
@@ -330,6 +341,7 @@
     <div class="fin-rank" id="finRank">🥇</div>
     <div class="fin-sub" id="finSub">Watch the TV for final results!</div>
     <div class="fin-time" id="finTime"></div>
+    <button class="race-again-btn" id="raceAgainBtn">🔄 Race Again!</button>
   </div>
 
   <!-- Reconnect -->
@@ -368,6 +380,7 @@
   const finRank          = document.getElementById('finRank');
   const finSub           = document.getElementById('finSub');
   const finTime          = document.getElementById('finTime');
+  const raceAgainBtn     = document.getElementById('raceAgainBtn');
   const reconnectOverlay = document.getElementById('reconnectOverlay');
 
   // ── State ─────────────────────────────────────────────────────────────
@@ -513,6 +526,11 @@
   joinBtn.addEventListener('click', () => { BikeRaceSFX.unlock(); doJoin(); });
   nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
   roomInput.addEventListener('keydown', e => { if (e.key === 'Enter') nameInput.focus(); });
+  raceAgainBtn.addEventListener('click', () => {
+    socket.emit('play_again');
+    raceAgainBtn.disabled = true;
+    raceAgainBtn.textContent = '⏳ Waiting…';
+  });
   roomInput.addEventListener('input', () => {
     roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
   });
@@ -605,6 +623,8 @@
     updatePedalHighlight();
     progressFill.style.width = '0%';
     speedFill.style.width    = '0%';
+    raceAgainBtn.disabled    = false;
+    raceAgainBtn.textContent = '🔄 Race Again!';
     showScreen('waitScreen');
     waitTitle.textContent = 'Waiting for new race…';
   });

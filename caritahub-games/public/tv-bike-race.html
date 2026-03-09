@@ -101,7 +101,9 @@
   let commentHideTimer = null;
   let commentCooldown  = false;
 
-  const SPECTATORS = ['🧑', '👦', '👧', '🧒', '👴', '👵', '🧑‍🦱', '🧑‍🦳'];
+  const SPECTATORS = ['🧑', '👦', '👧', '🧒', '👴', '👵', '🧑‍🦱', '🧑‍🦳',
+                       '🙋', '🙆', '🤸', '👏', '🎉', '🎊', '🏳️', '🚩',
+                       '🧑‍🤝‍🧑', '👫', '👬', '👭'];
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   function showPhase(id) {
@@ -227,11 +229,15 @@
 
   // ── Spectators ────────────────────────────────────────────────────────────
   function buildSpectators() {
-    const count = 20;
-    let html = '';
-    for (let i = 0; i < count; i++) html += SPECTATORS[Math.floor(Math.random() * SPECTATORS.length)] + ' ';
-    spectatorsTop.textContent    = html;
-    spectatorsBottom.textContent = html;
+    function makeRow(count) {
+      let html = '';
+      for (let i = 0; i < count; i++) {
+        html += `<span>${SPECTATORS[Math.floor(Math.random() * SPECTATORS.length)]}</span>`;
+      }
+      return html;
+    }
+    spectatorsTop.innerHTML    = makeRow(40);
+    spectatorsBottom.innerHTML = makeRow(40);
   }
 
   // ── QR Code ───────────────────────────────────────────────────────────────
@@ -499,7 +505,7 @@
     if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
     const banner = racingPhase.querySelector('.winner-banner');
     if (banner) banner.remove();
-    commentatorWrap.classList.remove('visible');
+    commentatorStrip.classList.remove('speaking');
     showPhase('lobbyPhase');
   });
 
