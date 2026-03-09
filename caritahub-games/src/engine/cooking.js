@@ -36,19 +36,35 @@ const TARGET_ORDERS = 8;          // serve this many to WIN!
 // Phase 2 (4 orders):   hard   — faster pace, shorter lifetime
 // Phase 3 (6+ orders):  rush   — maximum pressure!
 
-function getDifficulty(ordersFilled, elapsed) {
+function getDifficulty(ordersFilled, elapsed, playerCount) {
   const phase = Math.min(3, Math.floor(ordersFilled / 2));
   // Also factor in time — after 90s, push harder even if not many orders filled
   const timePhase = elapsed > 120_000 ? 2 : elapsed > 60_000 ? 1 : 0;
   const effective = Math.max(phase, timePhase);
 
+  // Base settings per difficulty phase
   const settings = [
     { orderInterval: 18_000, orderLifetime: 75_000, maxOrders: 2, tapMult: 0.8, circleMult: 0.8, label: 'Easy' },
     { orderInterval: 14_000, orderLifetime: 60_000, maxOrders: 3, tapMult: 0.9, circleMult: 0.9, label: 'Medium' },
     { orderInterval: 10_000, orderLifetime: 50_000, maxOrders: 4, tapMult: 1.0, circleMult: 1.0, label: 'Hard' },
     { orderInterval:  8_000, orderLifetime: 40_000, maxOrders: 5, tapMult: 1.2, circleMult: 1.2, label: 'Rush!' },
   ];
-  return settings[effective];
+  const s = { ...settings[effective] };
+
+  // Scale by player count:
+  // 1 player = easier (fewer orders, slower pace)
+  // 2 players = baseline
+  // 3-4 players = more orders come faster, more concurrent orders
+  const pc = Math.max(1, playerCount || 1);
+  const playerScale = pc <= 1 ? 0.7 : pc === 2 ? 1.0 : pc === 3 ? 1.3 : 1.5;
+
+  s.maxOrders = Math.max(1, Math.round(s.maxOrders * playerScale));
+  // More players → shorter interval between orders (they can handle more)
+  s.orderInterval = Math.round(s.orderInterval / playerScale);
+  // Solo player gets more time per order
+  if (pc === 1) s.orderLifetime = Math.round(s.orderLifetime * 1.3);
+
+  return s;
 }
 
 // ── Kitchen stations (for TV visualization) ─────────────────────────────────
@@ -285,7 +301,7 @@ function createGame() {
   // ── Order management ──────────────────────────────────────────────────────
 
   function _spawnOrder() {
-    const diff = getDifficulty(ordersFilled, GAME_DURATION_MS - timeLeftMs);
+    const diff = getDifficulty(ordersFilled, GAME_DURATION_MS - timeLeftMs, players.length);
     if (orders.length >= diff.maxOrders || players.length === 0) return;
 
     // Early game: prefer simpler recipes (Pancake, Burger), later: all recipes
@@ -378,7 +394,7 @@ function createGame() {
     }
 
     // Spawn new orders (interval based on difficulty)
-    const diff = getDifficulty(ordersFilled, GAME_DURATION_MS - timeLeftMs);
+    const diff = getDifficulty(ordersFilled, GAME_DURATION_MS - timeLeftMs, players.length);
     orderAccum += dt;
     if (orderAccum >= diff.orderInterval && orders.length < diff.maxOrders && players.length > 0) {
       _spawnOrder();
@@ -462,7 +478,7 @@ function createGame() {
   }
 
   function state() {
-    const diff = getDifficulty(ordersFilled, GAME_DURATION_MS - timeLeftMs);
+    const diff = getDifficulty(ordersFilled, GAME_DURATION_MS - timeLeftMs, players.length);
     return {
       players: players.map(p => ({
         id: p.id, name: p.name, color: p.color, emoji: p.emoji,
