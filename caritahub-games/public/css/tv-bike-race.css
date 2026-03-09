@@ -308,15 +308,17 @@ html, body {
   to   { transform: rotate(8deg); }
 }
 
-/* Finish line overlay on road */
+/* Finish line overlay on road — positioned at 90% left so avatar reaches it at progress=1 */
 .road-finish-line {
-  position: absolute; right: 0; top: 0; bottom: 0; width: 12px;
+  position: absolute; top: 0; bottom: 0;
+  right: 10%; width: 14px;
   background: repeating-linear-gradient(
     180deg,
     #000 0px, #000 8px,
     #fff 8px, #fff 16px
   );
   z-index: 5;
+  box-shadow: 0 0 8px rgba(255,255,255,0.4);
 }
 
 /* Winner celebration overlay */
@@ -367,6 +369,77 @@ html, body {
   cursor: pointer; transition: transform 0.1s;
 }
 .play-again-btn:hover { transform: scale(1.04); }
+
+/* ══════════════════════════════════════════════════════════
+   RACE COMMENTATOR — centered speech bubble overlay
+   ══════════════════════════════════════════════════════════ */
+.race-commentator-wrap {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 16px;
+  z-index: 30; pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  white-space: nowrap;
+}
+.race-commentator-wrap.visible { opacity: 1; }
+
+.commentator-icon {
+  font-size: 44px;
+  background: radial-gradient(circle, #2a1a4a, #1a0a2e);
+  border-radius: 50%;
+  width: 76px; height: 76px;
+  display: flex; align-items: center; justify-content: center;
+  border: 3px solid #f39c12;
+  flex-shrink: 0;
+  animation: iconPulse 1.8s ease-in-out infinite;
+  box-shadow: 0 0 20px rgba(243,156,18,0.4);
+}
+@keyframes iconPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(243,156,18,0.4); }
+  50%       { box-shadow: 0 0 36px rgba(243,156,18,0.8); }
+}
+
+/* Speech bubble */
+.speech-bubble {
+  position: relative;
+  background: rgba(15, 10, 35, 0.92);
+  border: 3px solid #f39c12;
+  border-radius: 22px;
+  padding: 16px 28px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(243,156,18,0.2);
+  animation: bubbleIn 0.35s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes bubbleIn {
+  from { transform: scale(0.7); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+/* Left-pointing arrow tail */
+.speech-bubble::before {
+  content: '';
+  position: absolute;
+  left: -18px; top: 50%;
+  transform: translateY(-50%);
+  border: 9px solid transparent;
+  border-right-color: #f39c12;
+}
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  left: -12px; top: 50%;
+  transform: translateY(-50%);
+  border: 7px solid transparent;
+  border-right-color: rgba(15, 10, 35, 0.92);
+}
+
+.speech-text {
+  font-size: 26px; font-weight: 900; color: #fff;
+  text-align: center; line-height: 1.25;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+}
 
 /* Reconnect overlay */
 .reconnect-overlay {

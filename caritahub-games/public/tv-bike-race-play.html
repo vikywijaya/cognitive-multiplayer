@@ -336,6 +336,7 @@
   <div id="reconnectOverlay" class="reconnect hidden">Reconnecting…</div>
 
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/bike-race-sfx.js"></script>
   <script>
   'use strict';
 
@@ -412,11 +413,13 @@
         cdNum.style.color = COLORS[count - 1];
         void cdNum.offsetWidth;
         cdNum.className = 'cd-number';
+        BikeRaceSFX.countTick(count);
         count--;
         setTimeout(tick, 900);
       } else {
         cdNum.textContent = 'GO!';
         cdNum.className = 'cd-number go';
+        BikeRaceSFX.go();
         if (navigator.vibrate) navigator.vibrate([100, 50, 200]);
         setTimeout(cb, 700);
       }
@@ -442,10 +445,10 @@
     const btn = side === 'left' ? leftPedal : rightPedal;
     triggerPedalEffect(btn, isAlternate);
 
-    // Haptic feedback
-    if (navigator.vibrate) {
-      navigator.vibrate(isAlternate ? 50 : 20);
-    }
+    // Sound + haptic feedback
+    BikeRaceSFX.pedalClick(isAlternate);
+    if (isAlternate) BikeRaceSFX.boost();
+    if (navigator.vibrate) navigator.vibrate(isAlternate ? 50 : 20);
 
     // Send to server
     socket.emit('bike_race_pedal', { side });
@@ -507,7 +510,7 @@
     joinBtn.disabled = true;
     socket.emit('join_game', { gameType: 'bike-race', playerName: name, roomId: room });
   }
-  joinBtn.addEventListener('click', doJoin);
+  joinBtn.addEventListener('click', () => { BikeRaceSFX.unlock(); doJoin(); });
   nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
   roomInput.addEventListener('keydown', e => { if (e.key === 'Enter') nameInput.focus(); });
   roomInput.addEventListener('input', () => {

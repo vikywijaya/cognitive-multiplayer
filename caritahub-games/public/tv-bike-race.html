@@ -41,11 +41,18 @@
   <div id="racingPhase" class="phase">
     <div class="race-hud">
       <span class="hud-title">🚲 Bike Race!</span>
-      <span class="hud-leader" id="hudLeader">—</span>
       <span class="hud-laps" id="hudElapsed">0:00</span>
     </div>
     <div class="spectator-row" id="spectatorsTop"></div>
-    <div class="race-track-container" id="raceTrackContainer"></div>
+    <div class="race-track-container" id="raceTrackContainer">
+      <!-- Race commentator — centered speech bubble -->
+      <div class="race-commentator-wrap" id="commentatorWrap">
+        <div class="commentator-icon">🎙️</div>
+        <div class="speech-bubble">
+          <div class="speech-text" id="speechText">And they're off!</div>
+        </div>
+      </div>
+    </div>
     <div class="spectator-row" id="spectatorsBottom"></div>
   </div>
 
@@ -54,68 +61,179 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="/js/bike-race-sfx.js"></script>
   <script>
   'use strict';
 
   const socket = io({ transports: ['websocket', 'polling'] });
 
   // ── DOM refs ──────────────────────────────────────────────────────────────
-  const lobbyPhase       = document.getElementById('lobbyPhase');
-  const countdownPhase   = document.getElementById('countdownPhase');
-  const racingPhase      = document.getElementById('racingPhase');
-  const lobbyPlayerList  = document.getElementById('lobbyPlayerList');
-  const startBtn         = document.getElementById('startBtn');
-  const joinUrlEl        = document.getElementById('joinUrl');
-  const countdownNum     = document.getElementById('countdownNum');
-  const countdownRacers  = document.getElementById('countdownRacers');
+  const lobbyPhase         = document.getElementById('lobbyPhase');
+  const countdownPhase     = document.getElementById('countdownPhase');
+  const racingPhase        = document.getElementById('racingPhase');
+  const lobbyPlayerList    = document.getElementById('lobbyPlayerList');
+  const startBtn           = document.getElementById('startBtn');
+  const joinUrlEl          = document.getElementById('joinUrl');
+  const countdownNum       = document.getElementById('countdownNum');
+  const countdownRacers    = document.getElementById('countdownRacers');
   const raceTrackContainer = document.getElementById('raceTrackContainer');
-  const hudLeader        = document.getElementById('hudLeader');
-  const hudElapsed       = document.getElementById('hudElapsed');
-  const spectatorsTop    = document.getElementById('spectatorsTop');
-  const spectatorsBottom = document.getElementById('spectatorsBottom');
-  const reconnectOverlay = document.getElementById('reconnectOverlay');
+  const hudElapsed         = document.getElementById('hudElapsed');
+  const spectatorsTop      = document.getElementById('spectatorsTop');
+  const spectatorsBottom   = document.getElementById('spectatorsBottom');
+  const commentatorWrap    = document.getElementById('commentatorWrap');
+  const speechText         = document.getElementById('speechText');
+  const reconnectOverlay   = document.getElementById('reconnectOverlay');
 
   // ── State ─────────────────────────────────────────────────────────────────
-  let myRoomId     = null;
-  let myColor      = null;
-  let currentPlayers = [];
-  let racerOrder   = [];       // ordered player ids for lane layout
-  let elapsedTimer = null;
-  let startedAt    = null;
-  let raceOver     = false;
+  let myRoomId       = null;
+  let myColor        = null;
+  let raceOver       = false;
+  let elapsedTimer   = null;
+  let startedAt      = null;
 
-  const SPECTATORS   = ['🧑', '👦', '👧', '🧒', '👴', '👵', '🧑‍🦱', '🧑‍🦳'];
-  const TRACK_LENGTH = 2000;
+  // Commentary state
+  let lastLeaderName   = null;
+  const commentFinished = new Set();
+  let lastCommentAt    = 0;
+  let commentHideTimer = null;
+  let commentCooldown  = false;
+
+  const SPECTATORS = ['🧑', '👦', '👧', '🧒', '👴', '👵', '🧑‍🦱', '🧑‍🦳'];
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   function showPhase(id) {
     [lobbyPhase, countdownPhase, racingPhase].forEach(p => p.classList.remove('active'));
     document.getElementById(id).classList.add('active');
   }
-
   function esc(s) {
     return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
   }
-
   function formatElapsed(ms) {
     const s = Math.floor(ms / 1000);
     return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
   }
-
   function rankLabel(n) {
-    const s = ['', '1st', '2nd', '3rd', '4th', '5th', '6th'];
-    return s[n] || `${n}th`;
+    return ['', '1st', '2nd', '3rd', '4th', '5th', '6th'][n] || `${n}th`;
+  }
+  function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  // ── Race Commentator ──────────────────────────────────────────────────────
+  const LINES = {
+    start: [
+      "🚲 They're off! Let's RACE!!",
+      "💨 And the race begins! Pedal HARDER!",
+      "🏁 The race is ON! Who will cross first?",
+    ],
+    lead: [
+      (n, e) => `${e} ${n} surges to the front!`,
+      (n, e) => `💨 ${n} takes the lead! Can they hold it?`,
+      (n, e) => `🔥 Look at ${n} go! Unbelievable speed!`,
+      (n, e) => `${e} ${n} is flying down the track!`,
+    ],
+    close: [
+      "😱 It's NECK AND NECK! Anyone could win!",
+      "🔥 Too close to call! What a race!!",
+      "💥 Unbelievable! They're right on top of each other!",
+    ],
+    halfway: [
+      (n, e) => `⚡ ${n} hits the halfway mark first!`,
+      (n, e) => `🚲 ${n} is picking up serious pace!`,
+      (n, e) => `💪 ${n} is pedaling like a champion!`,
+    ],
+    final: [
+      (n, e) => `🔥 ${n} is sprinting for the finish line!`,
+      (n, e) => `😤 ${n} giving it EVERYTHING in the final stretch!`,
+      (n, e) => `🚀 ${n} is FLYING! Will anyone catch them?!`,
+    ],
+    win: [
+      (n, e) => `🏆 ${e} ${n} WINS THE RACE!! INCREDIBLE!!`,
+      (n, e) => `🎉 ${n} crosses the finish line FIRST! CHAMPION!`,
+    ],
+    p2:  [(n, e) => `🥈 ${n} finishes in second place!`],
+    p3:  [(n, e) => `🥉 ${n} takes the bronze!`],
+    pN:  [(n, e) => `🏁 ${n} crosses the line!`],
+  };
+
+  function say(text, hold = 3200) {
+    speechText.textContent = text;
+    // Restart bubble animation by re-inserting
+    const bubble = commentatorWrap.querySelector('.speech-bubble');
+    bubble.style.animation = 'none';
+    void bubble.offsetWidth;
+    bubble.style.animation = '';
+
+    commentatorWrap.classList.add('visible');
+    clearTimeout(commentHideTimer);
+    commentHideTimer = setTimeout(() => commentatorWrap.classList.remove('visible'), hold);
+    lastCommentAt = Date.now();
+    commentCooldown = true;
+    setTimeout(() => { commentCooldown = false; }, 2200);
   }
 
-  // ── Spectators decoration ─────────────────────────────────────────────────
-  function buildSpectators() {
-    const count = 18;
-    let html = '';
-    for (let i = 0; i < count; i++) {
-      html += SPECTATORS[Math.floor(Math.random() * SPECTATORS.length)];
-      html += ' ';
+  function updateCommentary(gs) {
+    if (commentCooldown) return;
+    if (Date.now() - lastCommentAt < 2200) return;
+
+    const sorted = [...gs.players].sort((a, b) => b.position - a.position);
+    const leader = sorted[0];
+    if (!leader) return;
+
+    // Priority 1: new finishers
+    for (const p of gs.players) {
+      if (p.finished && !commentFinished.has(p.id)) {
+        commentFinished.add(p.id);
+        if (p.rank === 1) {
+          say(pickRandom(LINES.win)(p.name, p.emoji), 4500);
+          BikeRaceSFX.finish();
+        } else if (p.rank === 2) {
+          say(pickRandom(LINES.p2)(p.name, p.emoji));
+          BikeRaceSFX.finishSmall();
+        } else if (p.rank === 3) {
+          say(pickRandom(LINES.p3)(p.name, p.emoji));
+          BikeRaceSFX.finishSmall();
+        } else {
+          say(pickRandom(LINES.pN)(p.name, p.emoji));
+        }
+        return;
+      }
     }
-    spectatorsTop.textContent = html;
+
+    // Priority 2: leader change
+    if (!leader.finished && leader.name !== lastLeaderName) {
+      lastLeaderName = leader.name;
+      say(pickRandom(LINES.lead)(leader.name, leader.emoji));
+      BikeRaceSFX.leaderChange();
+      return;
+    }
+
+    // Priority 3: close race
+    if (sorted.length > 1 && !leader.finished) {
+      const gap = (sorted[0].position - sorted[1].position) / 2000;
+      if (gap < 0.07 && leader.progress > 0.25) {
+        say(pickRandom(LINES.close));
+        BikeRaceSFX.crowd();
+        return;
+      }
+    }
+
+    // Priority 4: progress milestones
+    if (!leader.finished) {
+      const prog = leader.progress;
+      if (prog > 0.82) {
+        say(pickRandom(LINES.final)(leader.name, leader.emoji));
+        BikeRaceSFX.finalStretch();
+      } else if (prog > 0.45 && prog < 0.58) {
+        say(pickRandom(LINES.halfway)(leader.name, leader.emoji));
+      }
+    }
+  }
+
+  // ── Spectators ────────────────────────────────────────────────────────────
+  function buildSpectators() {
+    const count = 20;
+    let html = '';
+    for (let i = 0; i < count; i++) html += SPECTATORS[Math.floor(Math.random() * SPECTATORS.length)] + ' ';
+    spectatorsTop.textContent    = html;
     spectatorsBottom.textContent = html;
   }
 
@@ -129,7 +247,7 @@
     });
   }
 
-  // ── Lobby: player list ────────────────────────────────────────────────────
+  // ── Lobby player list ─────────────────────────────────────────────────────
   function updateLobbyPlayers(players) {
     const racers = players.filter(p => p.color !== 'tv-host');
     if (!racers.length) {
@@ -137,7 +255,6 @@
       startBtn.disabled = true;
       return;
     }
-
     const EMOJIS = ['🐢', '🐇', '🦊', '🐻', '🦔', '🐼'];
     const COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
     lobbyPlayerList.innerHTML = racers.map((p, i) => `
@@ -147,15 +264,12 @@
         <span class="player-row-ready">Ready!</span>
       </div>
     `).join('');
-
-    startBtn.disabled = racers.length < 1;
+    startBtn.disabled = false;
   }
 
-  // ── Countdown animation ───────────────────────────────────────────────────
+  // ── Countdown ─────────────────────────────────────────────────────────────
   function runCountdown(players, cb) {
     showPhase('countdownPhase');
-
-    // Build racer preview
     const EMOJIS = ['🐢', '🐇', '🦊', '🐻', '🦔', '🐼'];
     countdownRacers.innerHTML = players.map((p, i) => `
       <div class="countdown-racer" style="animation-delay:${i * 0.15}s">
@@ -171,14 +285,16 @@
       countdownNum.className = 'countdown-number';
       if (count > 0) {
         countdownNum.textContent = count;
-        countdownNum.style.color = COLORS_CD[count - 1] || '#fff';
-        void countdownNum.offsetWidth; // force reflow to restart animation
+        countdownNum.style.color = COLORS_CD[count - 1];
+        void countdownNum.offsetWidth;
         countdownNum.className = 'countdown-number';
+        BikeRaceSFX.countTick(count);
         count--;
         setTimeout(tick, 900);
       } else {
         countdownNum.textContent = 'GO!';
         countdownNum.className = 'countdown-number go';
+        BikeRaceSFX.go();
         setTimeout(cb, 700);
       }
     }
@@ -187,10 +303,11 @@
 
   // ── Build race track lanes ────────────────────────────────────────────────
   function buildRaceTrack(players) {
-    racerOrder = players.map(p => p.id);
     buildSpectators();
 
-    raceTrackContainer.innerHTML = '';
+    // Remove old lanes only (keep commentator element)
+    const oldLanes = raceTrackContainer.querySelectorAll('.player-lane');
+    oldLanes.forEach(l => l.remove());
 
     for (const p of players) {
       const lane = document.createElement('div');
@@ -226,17 +343,9 @@
   function updateRace(gs) {
     if (!gs.players) return;
 
-    // Update elapsed timer
-    if (gs.elapsed !== undefined) {
-      hudElapsed.textContent = formatElapsed(gs.elapsed);
-    }
+    if (gs.elapsed !== undefined) hudElapsed.textContent = formatElapsed(gs.elapsed);
 
-    // Sort to find leader
-    const sorted = [...gs.players].sort((a, b) => b.position - a.position);
-    if (sorted.length) {
-      const leader = sorted[0];
-      hudLeader.textContent = `🥇 ${leader.name} leads!`;
-    }
+    updateCommentary(gs);
 
     for (const p of gs.players) {
       const avatarEl = document.getElementById(`avatar-${p.id}`);
@@ -247,52 +356,49 @@
       const flagEl   = document.getElementById(`flag-${p.id}`);
       if (!avatarEl) continue;
 
-      // Position: map 0-TRACK_LENGTH to 2%-88% to stay within road bounds
-      const pct = 2 + (p.progress * 86);
-      avatarEl.style.left = `${Math.min(88, pct)}%`;
+      // Map progress 0→1 to 2%→90% so avatar visually reaches the finish line (right:10%)
+      const pct = 2 + (p.progress * 88);
+      avatarEl.style.left = `${pct}%`;
 
-      // Speed display
-      const kmh = Math.round(p.speed * 12); // scale to look like km/h
-      if (speedEl) speedEl.textContent = `${kmh} km/h`;
+      // Speed display (scaled to look like km/h)
+      if (speedEl) speedEl.textContent = `${Math.round(p.speed * 12)} km/h`;
 
       // Rank display
       if (rankEl) {
         rankEl.textContent = p.rank ? rankLabel(p.rank) : '—';
-        rankEl.className = 'lane-rank' + (p.rank === 1 ? ' rank-1' : p.rank === 2 ? ' rank-2' : p.rank === 3 ? ' rank-3' : '');
+        rankEl.className = 'lane-rank' +
+          (p.rank === 1 ? ' rank-1' : p.rank === 2 ? ' rank-2' : p.rank === 3 ? ' rank-3' : '');
       }
 
-      // Bike + rider animation: bounce when moving
+      // Bike + rider bounce animation
       const charEl = avatarEl.querySelector('.avatar-char');
       if (p.speed > 0.3) {
-        if (bikeEl) { bikeEl.classList.add('spinning'); }
-        if (charEl) { charEl.classList.add('riding'); }
+        bikeEl && bikeEl.classList.add('spinning');
+        charEl && charEl.classList.add('riding');
         const dur = Math.max(0.12, 0.35 - p.speed * 0.02);
         if (bikeEl) bikeEl.style.animationDuration = `${dur}s`;
         if (charEl) charEl.style.animationDuration = `${dur}s`;
       } else {
-        if (bikeEl) bikeEl.classList.remove('spinning');
-        if (charEl) charEl.classList.remove('riding');
+        bikeEl && bikeEl.classList.remove('spinning');
+        charEl && charEl.classList.remove('riding');
       }
 
-      // Road dash scrolling
+      // Road dash scroll (motion effect)
       if (dashEl) {
         if (p.speed > 0.3) {
           dashEl.classList.add('moving');
-          const scrollDur = Math.max(0.1, 0.5 - p.speed * 0.03);
-          dashEl.style.animationDuration = `${scrollDur}s`;
+          dashEl.style.animationDuration = `${Math.max(0.1, 0.5 - p.speed * 0.03)}s`;
         } else {
           dashEl.classList.remove('moving');
         }
       }
 
-      // Finish flag
-      if (flagEl && p.finished) {
-        flagEl.classList.add('crossed');
-      }
+      // Finish flag waves when player crosses
+      if (flagEl && p.finished) flagEl.classList.add('crossed');
     }
   }
 
-  // ── Show winner banner ────────────────────────────────────────────────────
+  // ── Winner banner ─────────────────────────────────────────────────────────
   function showWinner(gs) {
     raceOver = true;
     if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
@@ -302,7 +408,7 @@
     if (!first) return;
 
     const podiumHtml = sorted.slice(0, 3).map((p, i) => {
-      const medals = ['🥇', '🥈', '🥉'];
+      const medals  = ['🥇', '🥈', '🥉'];
       const timeStr = p.finishTime ? formatElapsed(p.finishTime) : '—';
       return `<div class="podium-item">
         <div class="podium-rank">${medals[i]}</div>
@@ -325,15 +431,11 @@
       </div>
     `;
     racingPhase.appendChild(banner);
-
-    document.getElementById('playAgainBtn').addEventListener('click', () => {
-      socket.emit('play_again');
-    });
+    document.getElementById('playAgainBtn').addEventListener('click', () => socket.emit('play_again'));
   }
 
-  // ── Start elapsed timer ───────────────────────────────────────────────────
   function startElapsedTimer() {
-    startedAt = Date.now();
+    startedAt    = Date.now();
     elapsedTimer = setInterval(() => {
       if (raceOver) { clearInterval(elapsedTimer); return; }
       hudElapsed.textContent = formatElapsed(Date.now() - startedAt);
@@ -347,7 +449,6 @@
   socket.on('connect', () => {
     reconnectOverlay.classList.add('hidden');
     if (!myRoomId) {
-      // TV Host joins its own room
       socket.emit('join_game', { gameType: 'bike-race', playerName: 'TV Host' });
     } else {
       socket.emit('join_game', { gameType: 'bike-race', playerName: 'TV Host', roomId: myRoomId, reconnect: true });
@@ -362,17 +463,21 @@
   });
 
   socket.on('room_update', ({ players }) => {
-    if (!racingPhase.classList.contains('active')) {
-      updateLobbyPlayers(players);
-    }
+    if (!racingPhase.classList.contains('active')) updateLobbyPlayers(players);
   });
 
   startBtn.addEventListener('click', () => {
+    BikeRaceSFX.unlock();
     socket.emit('start_game');
     startBtn.disabled = true;
   });
 
   socket.on('bike_race_started', (gs) => {
+    // Reset commentary state
+    lastLeaderName = null;
+    commentFinished.clear();
+    lastCommentAt  = 0;
+
     const racers = gs.players;
     runCountdown(racers, () => {
       buildRaceTrack(racers);
@@ -380,6 +485,8 @@
       raceOver = false;
       startElapsedTimer();
       updateRace(gs);
+      // Opening commentary with brief delay after GO
+      setTimeout(() => say(pickRandom(LINES.start), 3000), 800);
     });
   });
 
@@ -392,9 +499,9 @@
   socket.on('play_again', () => {
     raceOver = false;
     if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
-    // Clear winner banner if present
     const banner = racingPhase.querySelector('.winner-banner');
     if (banner) banner.remove();
+    commentatorWrap.classList.remove('visible');
     showPhase('lobbyPhase');
   });
 
