@@ -13,6 +13,7 @@ const { createGame: createHigherLowerGame } = require('../engine/higher-lower');
 const { createGame: createReversiGame }        = require('../engine/reversi');
 const { createGame: createSnakesLaddersGame } = require('../engine/snakes-ladders');
 const { createGame: createCookingGame }        = require('../engine/cooking');
+const { createGame: createBikeRaceGame }       = require('../engine/bike-race');
 const analytics = require('../analytics/clickhouse');
 const leaderboard = require('../leaderboard');
 
@@ -356,6 +357,10 @@ function slPayload(roomId, room, engine) {
 const COOKING_COLORS = ['tv-host', 'cook1', 'cook2', 'cook3', 'cook4'];
 const cookingTimers = new Map(); // roomId → intervalHandle
 
+// ── Bike Race helpers ─────────────────────────────────────────────────────────
+const BIKE_RACE_COLORS = ['tv-host', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
+const bikeRaceTimers = new Map(); // roomId → intervalHandle
+
 function cookingTick(io, roomId) {
   const engine = engines.get(roomId);
   const room   = roomManager.getRoom(roomId);
@@ -382,6 +387,58 @@ function cookingTick(io, roomId) {
     engines.delete(roomId);
     roomGameTypes.delete(roomId);
     analytics.logEvent('game_ended', roomId, 'server', 'timer', { score: gs.score, won: gs.won || false, gameType: 'cooking' });
+  }
+}
+
+function bikeRaceTick(io, roomId) {
+  const engine = engines.get(roomId);
+  const room   = roomManager.getRoom(roomId);
+  if (!engine || !room) {
+    clearInterval(bikeRaceTimers.get(roomId));
+    bikeRaceTimers.delete(roomId);
+    return;
+  }
+  engine.tick();
+  const gs = engine.state();
+  io.to(roomId).emit('bike_race_state', gs);
+
+  // Send personalised states to each player phone
+  for (const rp of room.players) {
+    if (rp.color === 'tv-host' || !rp.socketId) continue;
+    const ps = engine.playerState(rp.name);
+    if (ps) io.to(rp.socketId).emit('bike_race_player_state', ps);
+  }
+
+  if (gs.roundOver && !gs.over) {
+    // Round finished, more rounds remain — stop tick and schedule next round
+    clearInterval(bikeRaceTimers.get(roomId));
+    bikeRaceTimers.delete(roomId);
+    io.to(roomId).emit('bike_race_round_over', {
+      round:       gs.currentRound,
+      totalRounds: gs.totalRounds,
+      players:     gs.players,
+    });
+    // Auto-start next round after 5 s
+    setTimeout(() => {
+      const eng = engines.get(roomId);
+      if (!eng) return; // play_again cancelled it
+      eng.startNextRound();
+      const nextGs = eng.state();
+      io.to(roomId).emit('bike_race_started', nextGs);
+      const timer = setInterval(() => bikeRaceTick(io, roomId), 100);
+      bikeRaceTimers.set(roomId, timer);
+    }, 5000);
+
+  } else if (gs.over) {
+    clearInterval(bikeRaceTimers.get(roomId));
+    bikeRaceTimers.delete(roomId);
+    const winnerName = engine.winner();
+    const rankings   = engine.overallRankings();
+    io.to(roomId).emit('bike_race_game_over', { winner: winnerName, rankings });
+    if (winnerName) leaderboard.recordWin('bike-race', winnerName);
+    engines.delete(roomId);
+    // Keep roomGameTypes so players can race again in the same room
+    analytics.logEvent('game_ended', roomId, 'server', 'timer', { winner: winnerName, gameType: 'bike-race' });
   }
 }
 
@@ -463,6 +520,7 @@ module.exports = function wireEvents(io) {
         else if (gameType === 'snakes-ladders')      colors = SL_COLORS.slice(0, 6); // up to 6 players
         else if (gameType === 'reversi')             colors = REVERSI_COLORS.slice();
         else if (gameType === 'cooking')             colors = COOKING_COLORS.slice(); // tv-host + up to 4 cooks
+        else if (gameType === 'bike-race')           colors = BIKE_RACE_COLORS.slice(); // tv-host + up to 6 riders
         else                               colors = ['red', 'black'];
         targetRoomId = roomManager.createRoom({ colors });
         roomGameTypes.set(targetRoomId, gameType);
@@ -520,6 +578,13 @@ module.exports = function wireEvents(io) {
             const ps = engine.playerState(name);
             if (ps) socket.emit('cooking_player_state', ps);
           }
+        } else if (gt === 'bike-race') {
+          const gs = engine.state();
+          if (gs.started) socket.emit('bike_race_state', gs);
+          if (socket.data.color !== 'tv-host') {
+            const ps = engine.playerState(name);
+            if (ps) socket.emit('bike_race_player_state', ps);
+          }
         } else {
           socket.emit('game_state', gameStatePayload(targetRoomId, room, engine));
         }
@@ -548,8 +613,9 @@ module.exports = function wireEvents(io) {
       const nonHostPlayers = room.players.filter(p => p.color !== 'tv-host');
       const requiredPlayers = gameType === 'chordaidi' ? 4
         : gameType === 'cooking' ? 1
+        : gameType === 'bike-race' ? 1
         : 2;
-      const countForCheck = gameType === 'cooking' ? nonHostPlayers.length : room.players.length;
+      const countForCheck = (gameType === 'cooking' || gameType === 'bike-race') ? nonHostPlayers.length : room.players.length;
       if (countForCheck < requiredPlayers) {
         return socket.emit('error', { message: `Waiting for ${requiredPlayers - countForCheck} more player(s).` });
       }
@@ -567,6 +633,13 @@ module.exports = function wireEvents(io) {
       else if (gameType === 'cooking') {
         engine = createCookingGame();
         // Register non-host players in the cooking engine
+        for (const rp of nonHostPlayers) {
+          engine.addPlayer(rp.name, rp.name);
+        }
+      }
+      else if (gameType === 'bike-race') {
+        engine = createBikeRaceGame();
+        // Register non-host players in the race engine
         for (const rp of nonHostPlayers) {
           engine.addPlayer(rp.name, rp.name);
         }
@@ -629,6 +702,13 @@ module.exports = function wireEvents(io) {
         // Start tick loop at 200ms
         const timer = setInterval(() => cookingTick(io, roomId), 200);
         cookingTimers.set(roomId, timer);
+      } else if (gameType === 'bike-race') {
+        engine.start();
+        const gs = engine.state();
+        io.to(roomId).emit('bike_race_started', gs);
+        // Start tick loop at 100ms
+        const timer = setInterval(() => bikeRaceTick(io, roomId), 100);
+        bikeRaceTimers.set(roomId, timer);
       } else {
         const payload = gameStatePayload(roomId, room, engine);
         io.to(roomId).emit('game_started', payload);
@@ -1256,6 +1336,20 @@ module.exports = function wireEvents(io) {
       socket.emit('cooking_flip_result', { result: result.result || result.action });
     });
 
+    // ── Bike Race: player pedals ──────────────────────────────────────
+    socket.on('bike_race_pedal', ({ side }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      const room   = roomManager.getRoom(roomId);
+      if (!engine || !room) return;
+      if (roomGameTypes.get(roomId) !== 'bike-race') return;
+      const playerName = socket.data.playerName;
+      const pedalSide  = side === 'right' ? 'right' : 'left';
+      engine.pedalTap(playerName, pedalSide);
+      // Personal state feedback is sent via the tick loop — no need to emit here
+    });
+
     // ── Snakes & Ladders: player rolls the dice ──────────────────────
     socket.on('snakes_roll', () => {
       const roomId = socket.data.roomId;
@@ -1784,9 +1878,17 @@ module.exports = function wireEvents(io) {
         clearInterval(cookingTimers.get(roomId));
         cookingTimers.delete(roomId);
       }
+      // Clear any running Bike Race tick timer
+      if (bikeRaceTimers.has(roomId)) {
+        clearInterval(bikeRaceTimers.get(roomId));
+        bikeRaceTimers.delete(roomId);
+      }
       // Clear engine so start_game can run fresh
+      const savedGameType = roomGameTypes.get(roomId);
       engines.delete(roomId);
       roomGameTypes.delete(roomId);
+      // Preserve game type for bike-race so players can restart without rejoining
+      if (savedGameType === 'bike-race') roomGameTypes.set(roomId, 'bike-race');
 
       // Tell everyone to return to the waiting screen
       io.to(roomId).emit('play_again');

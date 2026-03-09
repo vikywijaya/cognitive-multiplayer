@@ -84,6 +84,16 @@ app.get('/tv-cooking-play', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'tv-cooking-play.html'));
 });
 
+// TV Bike Race — TV display (host) page
+app.get('/tv-bike-race', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tv-bike-race.html'));
+});
+
+// TV Bike Race — mobile player page (players scan QR to reach this)
+app.get('/tv-bike-race-play', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tv-bike-race-play.html'));
+});
+
 // Leaderboard endpoint
 app.get('/api/leaderboard', (req, res) => {
   const leaderboard = require('./src/leaderboard');

@@ -1,0 +1,547 @@
+/* ═══════════════════════════════════════════════════════════
+   TV Bike Race — TV Host Display CSS
+   ═══════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%; overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  background: #0a1628;
+  color: #fff;
+  user-select: none;
+}
+
+/* ── Phase management ─────────────────────────────────────── */
+.phase { display: none; width: 100%; height: 100vh; position: relative; }
+.phase.active { display: flex; flex-direction: column; }
+
+/* ══════════════════════════════════════════════════════════
+   LOBBY PHASE
+   ══════════════════════════════════════════════════════════ */
+#lobbyPhase {
+  align-items: center; justify-content: center;
+  background: linear-gradient(160deg, #0a1628 0%, #1a2e4a 40%, #0d2035 100%);
+  gap: 0;
+}
+
+.lobby-title {
+  font-size: 72px; font-weight: 900;
+  background: linear-gradient(90deg, #f39c12, #e74c3c, #9b59b6);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-align: center;
+  text-shadow: none;
+  margin-bottom: 6px;
+  letter-spacing: -1px;
+}
+.lobby-subtitle {
+  font-size: 22px; color: #aac4e0; text-align: center;
+  margin-bottom: 40px;
+}
+
+.lobby-body {
+  display: flex; gap: 60px; align-items: flex-start;
+  justify-content: center; width: 100%; max-width: 1100px;
+  padding: 0 40px;
+}
+
+/* QR section */
+.qr-section { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.qr-box {
+  background: #fff; padding: 16px; border-radius: 16px;
+  box-shadow: 0 0 0 4px rgba(243,156,18,0.5), 0 8px 40px rgba(0,0,0,0.6);
+}
+
+/* Room code display */
+.room-code-box {
+  background: rgba(243,156,18,0.12);
+  border: 3px solid #f39c12;
+  border-radius: 16px;
+  padding: 10px 28px;
+  text-align: center;
+  box-shadow: 0 0 24px rgba(243,156,18,0.25);
+}
+.room-code-label {
+  font-size: 13px; color: #f39c12; font-weight: 800;
+  text-transform: uppercase; letter-spacing: 3px;
+}
+.room-code-value {
+  font-size: 52px; font-weight: 900; color: #fff;
+  letter-spacing: 10px; font-family: 'Courier New', monospace;
+  text-shadow: 0 0 20px rgba(243,156,18,0.6);
+  min-width: 180px; display: block;
+}
+.qr-instruction { font-size: 18px; color: #aac4e0; font-weight: 600; }
+.qr-url { font-size: 15px; color: #7fa8c8; letter-spacing: 0.5px; }
+
+/* Player section */
+.player-section { flex: 1; max-width: 480px; }
+.player-section-title { font-size: 22px; font-weight: 800; color: #f39c12; margin-bottom: 14px; }
+.player-list { display: flex; flex-direction: column; gap: 10px; min-height: 80px; }
+.player-empty { font-size: 18px; color: #555; font-style: italic; }
+.player-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 18px; border-radius: 12px;
+  background: rgba(255,255,255,0.07);
+  border-left: 4px solid var(--pcolor);
+  animation: playerIn 0.3s ease-out;
+}
+@keyframes playerIn {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.player-row-emoji { font-size: 28px; }
+.player-row-name  { font-size: 20px; font-weight: 700; flex: 1; }
+.player-row-ready { font-size: 14px; color: #4ecca3; font-weight: 700; }
+
+.start-btn {
+  margin-top: 24px; width: 100%; padding: 18px;
+  font-size: 24px; font-weight: 900;
+  background: linear-gradient(90deg, #f39c12, #e74c3c);
+  color: #fff; border: none; border-radius: 14px;
+  cursor: pointer; transition: transform 0.1s, opacity 0.2s;
+  box-shadow: 0 6px 30px rgba(231,76,60,0.4);
+}
+.start-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.start-btn:hover:not(:disabled) { transform: scale(1.02); }
+.start-btn:active:not(:disabled) { transform: scale(0.97); }
+
+/* ══════════════════════════════════════════════════════════
+   COUNTDOWN PHASE
+   ══════════════════════════════════════════════════════════ */
+#countdownPhase {
+  align-items: center; justify-content: center;
+  background: linear-gradient(160deg, #0a1628 0%, #1a1a2e 100%);
+}
+.countdown-container { text-align: center; }
+.countdown-label {
+  font-size: 32px; color: #aaa; margin-bottom: 20px;
+  font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+}
+.countdown-number {
+  font-size: 260px; font-weight: 900; line-height: 1;
+  animation: countPulse 0.9s ease-in-out;
+}
+@keyframes countPulse {
+  0%   { transform: scale(1.4); opacity: 0; }
+  30%  { transform: scale(1.0); opacity: 1; }
+  80%  { transform: scale(1.0); opacity: 1; }
+  100% { transform: scale(0.6); opacity: 0; }
+}
+.countdown-number.go {
+  color: #2ecc71;
+  font-size: 200px;
+  animation: goPulse 0.8s ease-out forwards;
+}
+@keyframes goPulse {
+  0%   { transform: scale(0.5); opacity: 0; }
+  30%  { transform: scale(1.1); opacity: 1; }
+  60%  { transform: scale(1.0); }
+  100% { transform: scale(1.05); opacity: 1; }
+}
+
+/* Characters preview during countdown */
+.countdown-racers {
+  display: flex; justify-content: center; gap: 28px;
+  margin-top: 30px;
+}
+.countdown-racer {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  animation: racerWiggle 0.4s ease-in-out infinite alternate;
+}
+@keyframes racerWiggle {
+  from { transform: translateY(0) rotate(-3deg); }
+  to   { transform: translateY(-8px) rotate(3deg); }
+}
+.countdown-racer-emoji { font-size: 44px; }
+.countdown-racer-name  { font-size: 14px; color: #aaa; font-weight: 700; }
+
+/* ══════════════════════════════════════════════════════════
+   RACING PHASE
+   ══════════════════════════════════════════════════════════ */
+#racingPhase {
+  background: #0a1628;
+  flex-direction: column;
+}
+
+/* Top HUD */
+.race-hud {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 24px;
+  background: rgba(0,0,0,0.5);
+  border-bottom: 2px solid rgba(243,156,18,0.3);
+  flex-shrink: 0;
+}
+.hud-title   { font-size: 24px; font-weight: 900; color: #f39c12; }
+.hud-round   {
+  font-size: 18px; font-weight: 900; color: #fff;
+  background: rgba(243,156,18,0.2); border-radius: 10px;
+  padding: 3px 14px; letter-spacing: 1px;
+}
+.hud-laps    { font-size: 18px; color: #aaa; }
+.hud-leader  { font-size: 18px; color: #2ecc71; font-weight: 700; }
+
+/* Race track container */
+.race-track-container {
+  flex: 1; display: flex; flex-direction: column;
+  justify-content: center; padding: 12px 24px; gap: 0;
+  position: relative; overflow: hidden;
+}
+
+/* Spectator row */
+.spectator-row {
+  display: flex; flex-wrap: wrap; gap: 2px 4px;
+  padding: 4px 12px; justify-content: center; align-items: center;
+  font-size: 22px; line-height: 1.3;
+  opacity: 0.75;
+}
+
+/* Individual player lane */
+.player-lane {
+  flex: 1; display: flex; align-items: stretch;
+  position: relative; margin: 8px 0;
+  min-height: 110px; max-height: 180px;
+  /* allow oversized avatar to overflow into margin without clipping */
+  overflow: visible;
+}
+
+/* Wrapper column inside the lane (grass + road + grass) */
+.lane-body {
+  flex: 1; display: flex; flex-direction: column;
+  overflow: hidden; border-radius: 6px;
+}
+
+.lane-road {
+  flex: 1;
+  background: linear-gradient(180deg, #555 0%, #666 45%, #555 55%, #666 100%);
+  position: relative; overflow: visible;
+  border-top: 3px solid #888;
+  border-bottom: 3px solid #888;
+  min-height: 60px;
+}
+
+/* Scrolling lane markings (motion effect) */
+.lane-dashes {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 200%; height: 6px;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0px, transparent 30px,
+    rgba(255,255,255,0.7) 30px, rgba(255,255,255,0.7) 70px
+  );
+  animation: dashScroll 0.4s linear infinite;
+  animation-play-state: paused;
+}
+.lane-dashes.moving { animation-play-state: running; }
+@keyframes dashScroll {
+  from { transform: translateY(-50%) translateX(0); }
+  to   { transform: translateY(-50%) translateX(-50%); }
+}
+
+/* Grass borders */
+.lane-grass-top, .lane-grass-bottom {
+  height: 14px;
+  background: repeating-linear-gradient(
+    90deg,
+    #2d6a1e 0px, #2d6a1e 18px,
+    #3a8a28 18px, #3a8a28 36px
+  );
+  position: relative; overflow: hidden;
+}
+.lane-grass-top  { border-radius: 4px 4px 0 0; border-bottom: 2px solid #e74c3c; }
+.lane-grass-bottom { border-radius: 0 0 4px 4px; border-top: 2px solid #e74c3c; }
+
+/* Player avatar on the track — bigger than the lane so it visually "rides" on top */
+.lane-avatar {
+  position: absolute;
+  top: 50%;
+  left: 2%;
+  transform: translate(0, -60%);   /* shift up so avatar rides above road center */
+  transition: left 0.12s linear;
+  display: flex; flex-direction: column; align-items: center;
+  z-index: 20; pointer-events: none;
+  line-height: 1; gap: 0;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.7));
+}
+/* Person / character riding above the bike */
+.avatar-char {
+  font-size: 48px; display: block;
+  transform: scaleX(-1); /* flip rider to face right (race goes left→right) */
+  animation: riderBounce 0.28s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+.avatar-char.riding { animation-play-state: running; }
+/* Bike below — extra large so it clearly sticks out of the lane */
+.avatar-bike {
+  font-size: 56px; display: block; margin-top: -10px;
+  transform: scaleX(-1); /* flip emoji to face right (race goes left→right) */
+  animation: bikeBounce 0.28s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+.avatar-bike.spinning { animation-play-state: running; }
+@keyframes riderBounce {
+  from { transform: translateY(0) rotate(3deg) scaleX(-1); }
+  to   { transform: translateY(-6px) rotate(-3deg) scaleX(-1); }
+}
+@keyframes bikeBounce {
+  from { transform: translateY(0) scaleX(-1); }
+  to   { transform: translateY(-4px) scaleX(-0.97); }
+}
+
+/* Speed dust particles */
+.dust-cloud {
+  position: absolute;
+  pointer-events: none;
+  font-size: 14px;
+  opacity: 0;
+  animation: dustFly 0.6s ease-out forwards;
+}
+@keyframes dustFly {
+  0%   { opacity: 0.8; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-40px, -10px) scale(1.5); }
+}
+
+/* Lane info sidebar */
+.lane-info {
+  width: 120px; display: flex; flex-direction: column;
+  align-items: flex-end; justify-content: center;
+  padding-right: 10px; flex-shrink: 0;
+  align-self: center;
+}
+
+.lane-rank {
+  font-size: 22px; font-weight: 900;
+  color: #f39c12;
+}
+.lane-rank.rank-1 { color: #ffd700; font-size: 28px; }
+.lane-rank.rank-2 { color: #c0c0c0; }
+.lane-rank.rank-3 { color: #cd7f32; }
+.lane-name  { font-size: 16px; font-weight: 700; color: #fff; margin-top: 2px; }
+.lane-wins  { font-size: 12px; font-weight: 700; color: #888; margin-top: 2px; letter-spacing: 0.5px; }
+.lane-wins.has-wins { color: #ffd700; }
+.lane-speed { font-size: 13px; color: #aaa; margin-top: 2px; }
+
+/* Finish flag column */
+.lane-finish {
+  width: 32px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  align-self: center;
+}
+.finish-flag {
+  font-size: 24px;
+  opacity: 0.5;
+}
+.finish-flag.crossed { opacity: 1; animation: flagWave 0.5s ease-in-out infinite alternate; }
+@keyframes flagWave {
+  from { transform: rotate(-8deg); }
+  to   { transform: rotate(8deg); }
+}
+
+/* Finish line overlay on road — positioned at 90% left so avatar reaches it at progress=1 */
+.road-finish-line {
+  position: absolute; top: 0; bottom: 0;
+  right: 10%; width: 14px;
+  background: repeating-linear-gradient(
+    180deg,
+    #000 0px, #000 8px,
+    #fff 8px, #fff 16px
+  );
+  z-index: 5;
+  box-shadow: 0 0 8px rgba(255,255,255,0.4);
+}
+
+/* Winner celebration overlay */
+.winner-banner {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 50;
+  animation: bannerIn 0.4s ease-out;
+}
+@keyframes bannerIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.winner-content {
+  text-align: center;
+  background: linear-gradient(135deg, #1a0a2e, #2d1540);
+  border: 3px solid #ffd700;
+  border-radius: 24px; padding: 28px 48px 36px;
+  box-shadow: 0 0 60px rgba(255,215,0,0.4);
+  max-width: 680px; width: 90vw;
+  max-height: 92vh; overflow-y: auto;
+}
+.winner-top { display: flex; flex-direction: column; align-items: center; }
+.winner-trophy  { font-size: 72px; animation: trophyBounce 0.6s ease-in-out infinite alternate; }
+@keyframes trophyBounce {
+  from { transform: translateY(0) rotate(-5deg); }
+  to   { transform: translateY(-12px) rotate(5deg); }
+}
+.winner-label  { font-size: 24px; color: #aaa; margin-top: 6px; }
+.winner-name   { font-size: 52px; font-weight: 900; color: #ffd700; margin-top: 2px; }
+.winner-emoji  { font-size: 48px; margin-top: 6px; }
+
+/* Race summary table */
+.race-summary {
+  width: 100%; margin: 20px 0 0;
+  background: rgba(255,255,255,0.04);
+  border-radius: 14px; padding: 14px 16px;
+}
+.race-summary-header {
+  font-size: 17px; font-weight: 800; color: #f39c12;
+  margin-bottom: 10px; text-align: center; letter-spacing: 1px;
+}
+.race-summary-cols {
+  display: grid; grid-template-columns: 44px 1fr repeat(3, 90px) 60px;
+  padding: 0 8px; margin-bottom: 4px;
+}
+.summary-col-label { font-size: 11px; color: #666; text-align: center; }
+.summary-col-label:nth-child(2) { text-align: left; }
+.race-summary-rows { display: flex; flex-direction: column; gap: 6px; }
+.summary-row {
+  display: grid; grid-template-columns: 44px 1fr repeat(3, 90px) 60px;
+  align-items: center; padding: 8px 8px;
+  border-radius: 10px; background: rgba(255,255,255,0.04);
+}
+.summary-row-winner {
+  background: rgba(255,215,0,0.12);
+  border: 1px solid rgba(255,215,0,0.3);
+}
+.summary-medal     { font-size: 22px; }
+.summary-avatar    { font-size: 15px; display: flex; align-items: center; gap: 6px; }
+.summary-name-text { font-weight: 700; }
+.summary-round-col {
+  font-size: 13px; text-align: center; color: #aaa; line-height: 1.3;
+}
+.summary-round-col small { font-size: 11px; color: #666; }
+.summary-round-col.round-win { color: #ffd700; font-weight: 800; }
+.summary-wins { font-size: 16px; text-align: center; }
+
+/* Round-over overlay */
+.round-over-overlay {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.72);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 40; animation: bannerIn 0.35s ease-out;
+}
+.round-over-content {
+  text-align: center;
+  background: linear-gradient(135deg, #0d1a2e, #1a2e4a);
+  border: 3px solid #4ecca3;
+  border-radius: 20px; padding: 28px 48px 32px;
+  box-shadow: 0 0 50px rgba(78,204,163,0.35);
+  min-width: 420px;
+}
+.round-over-title {
+  font-size: 32px; font-weight: 900; color: #4ecca3;
+  margin-bottom: 18px;
+}
+.round-result-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.round-result-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 12px; border-radius: 10px;
+  background: rgba(255,255,255,0.05); font-size: 16px;
+}
+.round-result-winner {
+  background: rgba(255,215,0,0.12);
+  border: 1px solid rgba(255,215,0,0.3);
+}
+.round-result-medal { font-size: 22px; width: 30px; }
+.round-result-name  { flex: 1; font-weight: 700; }
+.round-result-time  { color: #aaa; font-size: 14px; }
+.round-result-wins  { font-size: 16px; min-width: 40px; text-align: right; }
+.round-over-next {
+  font-size: 16px; color: #888; font-style: italic;
+}
+
+.play-again-btn {
+  margin-top: 28px; padding: 16px 48px;
+  font-size: 22px; font-weight: 800;
+  background: linear-gradient(90deg, #f39c12, #e74c3c);
+  color: #fff; border: none; border-radius: 14px;
+  cursor: pointer; transition: transform 0.1s;
+}
+.play-again-btn:hover { transform: scale(1.04); }
+
+/* ══════════════════════════════════════════════════════════
+   RACE COMMENTATOR — strip above the track lanes
+   Mic icon: always visible.  Speech bubble: fades in/out.
+   ══════════════════════════════════════════════════════════ */
+.commentator-strip {
+  display: flex; align-items: center; gap: 18px;
+  padding: 6px 24px;
+  background: rgba(5, 5, 20, 0.55);
+  border-bottom: 1px solid rgba(243,156,18,0.2);
+  flex-shrink: 0; min-height: 72px;
+}
+
+.commentator-icon {
+  font-size: 38px;
+  background: radial-gradient(circle, #2a1a4a, #1a0a2e);
+  border-radius: 50%;
+  width: 64px; height: 64px;
+  display: flex; align-items: center; justify-content: center;
+  border: 3px solid #f39c12;
+  flex-shrink: 0;
+  animation: iconPulse 1.8s ease-in-out infinite;
+  box-shadow: 0 0 20px rgba(243,156,18,0.4);
+}
+@keyframes iconPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(243,156,18,0.4); }
+  50%       { box-shadow: 0 0 36px rgba(243,156,18,0.8); }
+}
+
+/* Speech bubble — hidden by default, revealed when .speaking */
+.speech-bubble {
+  position: relative;
+  background: rgba(15, 10, 35, 0.92);
+  border: 3px solid #f39c12;
+  border-radius: 22px;
+  padding: 13px 26px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 6px 40px rgba(0,0,0,0.6);
+  /* hidden state */
+  opacity: 0;
+  transform: scale(0.88) translateX(-8px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  pointer-events: none;
+}
+.commentator-strip.speaking .speech-bubble {
+  opacity: 1;
+  transform: scale(1) translateX(0);
+}
+
+/* Left-pointing arrow tail */
+.speech-bubble::before {
+  content: '';
+  position: absolute;
+  left: -18px; top: 50%;
+  transform: translateY(-50%);
+  border: 9px solid transparent;
+  border-right-color: #f39c12;
+}
+.speech-bubble::after {
+  content: '';
+  position: absolute;
+  left: -12px; top: 50%;
+  transform: translateY(-50%);
+  border: 7px solid transparent;
+  border-right-color: rgba(15, 10, 35, 0.92);
+}
+
+.speech-text {
+  font-size: 24px; font-weight: 900; color: #fff;
+  line-height: 1.25;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  white-space: nowrap;
+}
+
+/* Reconnect overlay */
+.reconnect-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; font-weight: 700; z-index: 999;
+  color: #ff9f43;
+}
+.reconnect-overlay.hidden { display: none; }
