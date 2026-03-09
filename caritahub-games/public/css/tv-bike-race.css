@@ -267,6 +267,7 @@ html, body {
 /* Person / character riding above the bike */
 .avatar-char {
   font-size: 48px; display: block;
+  transform: scaleX(-1); /* flip rider to face right (race goes left→right) */
   animation: riderBounce 0.28s ease-in-out infinite alternate;
   animation-play-state: paused;
 }
@@ -280,8 +281,8 @@ html, body {
 }
 .avatar-bike.spinning { animation-play-state: running; }
 @keyframes riderBounce {
-  from { transform: translateY(0) rotate(-3deg); }
-  to   { transform: translateY(-6px) rotate(3deg); }
+  from { transform: translateY(0) rotate(3deg) scaleX(-1); }
+  to   { transform: translateY(-6px) rotate(-3deg) scaleX(-1); }
 }
 @keyframes bikeBounce {
   from { transform: translateY(0) scaleX(-1); }
