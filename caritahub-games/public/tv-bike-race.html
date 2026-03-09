@@ -14,8 +14,12 @@
     <div class="lobby-subtitle">Scan with your phone to join — pedal fast to win!</div>
     <div class="lobby-body">
       <div class="qr-section">
+        <div class="room-code-box">
+          <div class="room-code-label">Room Code</div>
+          <div class="room-code-value" id="roomCodeValue">—</div>
+        </div>
         <div class="qr-box"><div id="qrcode"></div></div>
-        <div class="qr-instruction">Scan with phone camera</div>
+        <div class="qr-instruction">Scan QR or go to:</div>
         <div id="joinUrl" class="qr-url"></div>
       </div>
       <div class="player-section">
@@ -43,16 +47,15 @@
       <span class="hud-title">🚲 Bike Race!</span>
       <span class="hud-laps" id="hudElapsed">0:00</span>
     </div>
-    <div class="spectator-row" id="spectatorsTop"></div>
-    <div class="race-track-container" id="raceTrackContainer">
-      <!-- Race commentator — centered speech bubble -->
-      <div class="race-commentator-wrap" id="commentatorWrap">
-        <div class="commentator-icon">🎙️</div>
-        <div class="speech-bubble">
-          <div class="speech-text" id="speechText">And they're off!</div>
-        </div>
+    <!-- Commentator strip: mic always visible, bubble fades in when speaking -->
+    <div class="commentator-strip" id="commentatorStrip">
+      <div class="commentator-icon">🎙️</div>
+      <div class="speech-bubble">
+        <div class="speech-text" id="speechText"></div>
       </div>
     </div>
+    <div class="spectator-row" id="spectatorsTop"></div>
+    <div class="race-track-container" id="raceTrackContainer"></div>
     <div class="spectator-row" id="spectatorsBottom"></div>
   </div>
 
@@ -80,7 +83,7 @@
   const hudElapsed         = document.getElementById('hudElapsed');
   const spectatorsTop      = document.getElementById('spectatorsTop');
   const spectatorsBottom   = document.getElementById('spectatorsBottom');
-  const commentatorWrap    = document.getElementById('commentatorWrap');
+  const commentatorStrip   = document.getElementById('commentatorStrip');
   const speechText         = document.getElementById('speechText');
   const reconnectOverlay   = document.getElementById('reconnectOverlay');
 
@@ -156,15 +159,9 @@
 
   function say(text, hold = 3200) {
     speechText.textContent = text;
-    // Restart bubble animation by re-inserting
-    const bubble = commentatorWrap.querySelector('.speech-bubble');
-    bubble.style.animation = 'none';
-    void bubble.offsetWidth;
-    bubble.style.animation = '';
-
-    commentatorWrap.classList.add('visible');
+    commentatorStrip.classList.add('speaking');
     clearTimeout(commentHideTimer);
-    commentHideTimer = setTimeout(() => commentatorWrap.classList.remove('visible'), hold);
+    commentHideTimer = setTimeout(() => commentatorStrip.classList.remove('speaking'), hold);
     lastCommentAt = Date.now();
     commentCooldown = true;
     setTimeout(() => { commentCooldown = false; }, 2200);
@@ -240,6 +237,7 @@
   // ── QR Code ───────────────────────────────────────────────────────────────
   function buildQR(roomId) {
     const url = `${location.protocol}//${location.host}/tv-bike-race-play?room=${roomId}`;
+    document.getElementById('roomCodeValue').textContent = roomId;
     joinUrlEl.textContent = url;
     new QRCode(document.getElementById('qrcode'), {
       text: url, width: 200, height: 200,
