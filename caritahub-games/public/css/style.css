@@ -1210,6 +1210,8 @@ input[type="text"]:focus { border-color: var(--blue); }
 .dot-blue   { background: var(--blue); }
 .dot-green  { background: #1a6e1a; }
 .dot-purple { background: #7d3c98; }
+.dot-orange { background: #e67e22; }
+.dot-cyan   { background: #16a085; }
 
 /* ===== Utility ===== */
 .hidden { display: none !important; }

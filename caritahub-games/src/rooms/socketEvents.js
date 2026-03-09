@@ -10,6 +10,9 @@ const { createGame: createTriviaGame }     = require('../engine/singapore-trivia
 const { createGame: createDiffGame }       = require('../engine/spot-the-difference');
 const { createGame: createRhythmGame }     = require('../engine/rhythm-tap');
 const { createGame: createHigherLowerGame } = require('../engine/higher-lower');
+const { createGame: createReversiGame }        = require('../engine/reversi');
+const { createGame: createSnakesLaddersGame } = require('../engine/snakes-ladders');
+const { createGame: createCookingGame }        = require('../engine/cooking');
 const analytics = require('../analytics/clickhouse');
 const leaderboard = require('../leaderboard');
 
@@ -326,6 +329,102 @@ function tvBogglePayload(roomId, room, engine) {
   };
 }
 
+// ── Snakes & Ladders helpers ──────────────────────────────────────────────────
+const SL_COLORS = ['red', 'blue', 'green', 'purple', 'orange', 'cyan'];
+
+function seatForSlColor(color) { return SL_COLORS.indexOf(color); }
+
+function slPayload(roomId, room, engine) {
+  const gs = engine.state();
+  return {
+    gameType:    'snakes-ladders',
+    positions:   gs.positions,
+    currentSeat: gs.currentSeat,
+    isGameOver:  gs.isGameOver,
+    winner:      gs.winner,
+    lastRoll:    gs.lastRoll,
+    lastEvent:   gs.lastEvent,
+    playerCount: gs.playerCount,
+    players: room.players.map(p => ({
+      name: p.name, color: p.color, connected: p.socketId !== null,
+      seat: seatForSlColor(p.color)
+    }))
+  };
+}
+
+// ── Cooking Game helpers ──────────────────────────────────────────────────────
+const COOKING_COLORS = ['tv-host', 'cook1', 'cook2', 'cook3', 'cook4'];
+const cookingTimers = new Map(); // roomId → intervalHandle
+
+function cookingTick(io, roomId) {
+  const engine = engines.get(roomId);
+  const room   = roomManager.getRoom(roomId);
+  if (!engine || !room) {
+    clearInterval(cookingTimers.get(roomId));
+    cookingTimers.delete(roomId);
+    return;
+  }
+  engine.tick();
+  const gs = engine.state();
+  io.to(roomId).emit('cooking_state', gs);
+
+  // Send personalised action lists to each connected player phone
+  for (const rp of room.players) {
+    if (rp.color === 'tv-host' || !rp.socketId) continue;
+    const ps = engine.playerState(rp.name);
+    if (ps) io.to(rp.socketId).emit('cooking_player_state', ps);
+  }
+
+  if (gs.over) {
+    clearInterval(cookingTimers.get(roomId));
+    cookingTimers.delete(roomId);
+    io.to(roomId).emit('cooking_game_over', { score: gs.score, won: gs.won || false });
+    engines.delete(roomId);
+    roomGameTypes.delete(roomId);
+    analytics.logEvent('game_ended', roomId, 'server', 'timer', { score: gs.score, won: gs.won || false, gameType: 'cooking' });
+  }
+}
+
+// ── TV Reversi helpers ────────────────────────────────────────────────────────
+const TV_REVERSI_COLORS = ['tv-host', 'black', 'white']; // tv-host = display, black moves first
+
+function tvReversiPayload(roomId, room, engine) {
+  const gs = engine.state();
+  return {
+    gameType:    'tv-reversi',
+    board:       gs.board,
+    turn:        gs.turn,
+    validMoves:  gs.validMoves,
+    discs:       gs.discs,
+    isGameOver:  gs.isGameOver,
+    winner:      gs.winner,
+    skippedLast: gs.skippedLast,
+    players: room.players
+      .filter(p => p.color !== 'tv-host')
+      .map(p => ({ name: p.name, color: p.color, connected: p.socketId !== null }))
+  };
+}
+
+// ── Reversi helpers ──────────────────────────────────────────────────────────
+const REVERSI_COLORS = ['black', 'white']; // black moves first
+
+function reversiPayload(roomId, room, engine) {
+  const gs = engine.state();
+  return {
+    gameType: 'reversi',
+    board:       gs.board,
+    turn:        gs.turn,        // 'B' | 'W'
+    validMoves:  gs.validMoves,
+    discs:       gs.discs,
+    isGameOver:  gs.isGameOver,
+    winner:      gs.winner,      // 'B' | 'W' | 'draw' | null
+    skippedLast: gs.skippedLast,
+    players: room.players.map(p => ({
+      name: p.name, color: p.color, connected: p.socketId !== null
+    }))
+  };
+}
+
 module.exports = function wireEvents(io) {
   io.on('connection', socket => {
     console.log('connect', socket.id);
@@ -360,6 +459,10 @@ module.exports = function wireEvents(io) {
         else if (gameType === 'tv-bingo')          colors = TV_BINGO_COLORS.slice(); // 1 host + 8 players
         else if (gameType === 'tv-higher-lower')   colors = TV_HL_COLORS.slice(); // 1 host + 8 players
         else if (gameType === 'tv-boggle')           colors = TV_BOGGLE_COLORS.slice(); // 1 host + 8 players
+        else if (gameType === 'tv-reversi')          colors = TV_REVERSI_COLORS.slice(); // 1 host + 2 players
+        else if (gameType === 'snakes-ladders')      colors = SL_COLORS.slice(0, 6); // up to 6 players
+        else if (gameType === 'reversi')             colors = REVERSI_COLORS.slice();
+        else if (gameType === 'cooking')             colors = COOKING_COLORS.slice(); // tv-host + up to 4 cooks
         else                               colors = ['red', 'black'];
         targetRoomId = roomManager.createRoom({ colors });
         roomGameTypes.set(targetRoomId, gameType);
@@ -405,6 +508,18 @@ module.exports = function wireEvents(io) {
           socket.emit('game_state', tvHlPayload(targetRoomId, room, engine));
         } else if (gt === 'tv-boggle') {
           socket.emit('game_state', tvBogglePayload(targetRoomId, room, engine));
+        } else if (gt === 'tv-reversi') {
+          socket.emit('game_state', tvReversiPayload(targetRoomId, room, engine));
+        } else if (gt === 'snakes-ladders') {
+          socket.emit('game_state', slPayload(targetRoomId, room, engine));
+        } else if (gt === 'reversi') {
+          socket.emit('game_state', reversiPayload(targetRoomId, room, engine));
+        } else if (gt === 'cooking') {
+          socket.emit('cooking_state', engine.state());
+          if (socket.data.color !== 'tv-host') {
+            const ps = engine.playerState(name);
+            if (ps) socket.emit('cooking_player_state', ps);
+          }
         } else {
           socket.emit('game_state', gameStatePayload(targetRoomId, room, engine));
         }
@@ -430,9 +545,13 @@ module.exports = function wireEvents(io) {
       if (engines.has(roomId)) return; // already started
 
       const gameType = roomGameTypes.get(roomId) || 'xiangqi';
-      const requiredPlayers = gameType === 'chordaidi' ? 4 : 2;
-      if (room.players.length < requiredPlayers) {
-        return socket.emit('error', { message: `Waiting for ${requiredPlayers - room.players.length} more player(s).` });
+      const nonHostPlayers = room.players.filter(p => p.color !== 'tv-host');
+      const requiredPlayers = gameType === 'chordaidi' ? 4
+        : gameType === 'cooking' ? 1
+        : 2;
+      const countForCheck = gameType === 'cooking' ? nonHostPlayers.length : room.players.length;
+      if (countForCheck < requiredPlayers) {
+        return socket.emit('error', { message: `Waiting for ${requiredPlayers - countForCheck} more player(s).` });
       }
 
       let engine;
@@ -443,6 +562,15 @@ module.exports = function wireEvents(io) {
       else if (gameType === 'singapore-trivia')  engine = createTriviaGame(room.players.length);
       else if (gameType === 'spot-the-difference') engine = createDiffGame(room.players.length);
       else if (gameType === 'rhythm-tap')          engine = createRhythmGame(room.players.length);
+      else if (gameType === 'snakes-ladders')      engine = createSnakesLaddersGame(room.players.length);
+      else if (gameType === 'reversi')             engine = createReversiGame();
+      else if (gameType === 'cooking') {
+        engine = createCookingGame();
+        // Register non-host players in the cooking engine
+        for (const rp of nonHostPlayers) {
+          engine.addPlayer(rp.name, rp.name);
+        }
+      }
       else                               engine = createXiangqiGame();
       engines.set(roomId, engine);
 
@@ -485,6 +613,22 @@ module.exports = function wireEvents(io) {
         io.to(roomId).emit('game_started', diffPayload(roomId, room, engine));
       } else if (gameType === 'rhythm-tap') {
         io.to(roomId).emit('game_started', rhythmPayload(roomId, room, engine));
+      } else if (gameType === 'snakes-ladders') {
+        io.to(roomId).emit('game_started', slPayload(roomId, room, engine));
+      } else if (gameType === 'reversi') {
+        io.to(roomId).emit('game_started', reversiPayload(roomId, room, engine));
+      } else if (gameType === 'cooking') {
+        const gs = engine.state();
+        io.to(roomId).emit('cooking_started', gs);
+        // Send personal action states immediately
+        for (const rp of room.players) {
+          if (rp.color === 'tv-host' || !rp.socketId) continue;
+          const ps = engine.playerState(rp.name);
+          if (ps) io.to(rp.socketId).emit('cooking_player_state', ps);
+        }
+        // Start tick loop at 200ms
+        const timer = setInterval(() => cookingTick(io, roomId), 200);
+        cookingTimers.set(roomId, timer);
       } else {
         const payload = gameStatePayload(roomId, room, engine);
         io.to(roomId).emit('game_started', payload);
@@ -533,6 +677,50 @@ module.exports = function wireEvents(io) {
         }
         analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: payload.winner, gameType });
         // Clean up engine so play_again / rematch is possible
+        engines.delete(roomId);
+        roomGameTypes.delete(roomId);
+      }
+    });
+
+    // ── Reversi: place disc ──────────────────────────────────────────
+    socket.on('reversi_move', ({ row, col }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      if (!engine) return socket.emit('invalid_move', { reason: 'Game not started' });
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      // Verify it is this player's turn
+      const playerColor = socket.data.color; // 'black' | 'white'
+      const engineTurn  = engine.turn();     // 'B' | 'W'
+      const isMyTurn    = (engineTurn === 'B' && playerColor === 'black') ||
+                          (engineTurn === 'W' && playerColor === 'white');
+      if (!isMyTurn) return socket.emit('invalid_move', { reason: 'Not your turn' });
+
+      if (engine.isGameOver()) return socket.emit('invalid_move', { reason: 'Game is over' });
+
+      const result = engine.move(row, col);
+      if (!result.ok) return socket.emit('invalid_move', { reason: result.reason });
+
+      const payload = reversiPayload(roomId, room, engine);
+      io.to(roomId).emit('game_state', payload);
+      analytics.logEvent('move_made', roomId, socket.id, socket.data.playerName, { row, col, gameType: 'reversi' });
+
+      if (payload.isGameOver) {
+        // Map engine winner ('B'/'W'/'draw') to player color ('black'/'white')
+        const winColor = payload.winner === 'B' ? 'black' : payload.winner === 'W' ? 'white' : null;
+        if (winColor) {
+          const winPlayer = room.players.find(p => p.color === winColor);
+          if (winPlayer) leaderboard.recordWin('reversi', winPlayer.name);
+        }
+        io.to(roomId).emit('game_over', {
+          winner: winColor,
+          reason: winColor
+            ? `${room.players.find(p => p.color === winColor)?.name || winColor} wins!`
+            : "It's a draw!"
+        });
+        analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: winColor, gameType: 'reversi' });
         engines.delete(roomId);
         roomGameTypes.delete(roomId);
       }
@@ -895,6 +1083,222 @@ module.exports = function wireEvents(io) {
       engines.delete(roomId);
       roomGameTypes.delete(roomId);
       analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: winnerColor, gameType: 'boggle' });
+    });
+
+    // ── TV Reversi: host starts game ────────────────────────────────
+    socket.on('tv_reversi_start', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      if (socket.data.color !== 'tv-host') return;
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+      if (engines.has(roomId)) return; // already started
+
+      const phonePlayers = room.players.filter(p => p.color !== 'tv-host');
+      if (phonePlayers.length < 2) {
+        return socket.emit('error', { message: 'Need 2 players to start.' });
+      }
+
+      const engine = createReversiGame();
+      engines.set(roomId, engine);
+      roomGameTypes.set(roomId, 'tv-reversi');
+
+      io.to(roomId).emit('game_started', tvReversiPayload(roomId, room, engine));
+      analytics.logEvent('game_started', roomId, socket.id, 'tv-host', { gameType: 'tv-reversi' });
+    });
+
+    // ── TV Reversi: player places a disc ────────────────────────────
+    socket.on('tv_reversi_move', ({ row, col }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      if (!engine) return socket.emit('invalid_move', { reason: 'Game not started' });
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      const playerColor = socket.data.color; // 'black' | 'white'
+      if (playerColor === 'tv-host') return;
+
+      const engineTurn = engine.turn(); // 'B' | 'W'
+      const isMyTurn   = (engineTurn === 'B' && playerColor === 'black') ||
+                         (engineTurn === 'W' && playerColor === 'white');
+      if (!isMyTurn) return socket.emit('invalid_move', { reason: 'Not your turn' });
+      if (engine.isGameOver()) return socket.emit('invalid_move', { reason: 'Game is over' });
+
+      const result = engine.move(row, col);
+      if (!result.ok) return socket.emit('invalid_move', { reason: result.reason });
+
+      const payload = tvReversiPayload(roomId, room, engine);
+      io.to(roomId).emit('game_state', payload);
+      analytics.logEvent('move_made', roomId, socket.id, socket.data.playerName, { row, col, gameType: 'tv-reversi' });
+
+      if (payload.isGameOver) {
+        const winColor = payload.winner === 'B' ? 'black' : payload.winner === 'W' ? 'white' : null;
+        const winPlayer = winColor ? room.players.find(p => p.color === winColor) : null;
+        if (winPlayer) leaderboard.recordWin('tv-reversi', winPlayer.name);
+        io.to(roomId).emit('game_over', {
+          winner: winPlayer?.name || null,
+          reason: winPlayer ? `${winPlayer.name} wins!` : "It's a draw!"
+        });
+        analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: winColor, gameType: 'tv-reversi' });
+        engines.delete(roomId);
+        roomGameTypes.delete(roomId);
+      }
+    });
+
+    // ── Cooking: player claims a task from available list ──────────
+    socket.on('cooking_claim_task', ({ taskId }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      const room   = roomManager.getRoom(roomId);
+      if (!engine || !room) return;
+      if (roomGameTypes.get(roomId) !== 'cooking') return;
+      const playerName = socket.data.playerName;
+      const result = engine.claimTask(playerName, taskId);
+      if (!result.ok) {
+        socket.emit('cooking_action_error', { reason: result.reason });
+        return;
+      }
+      // Broadcast full state (TV sees character move to station)
+      const gs = engine.state();
+      io.to(roomId).emit('cooking_state', gs);
+      // Send personal states to all players (available tasks changed)
+      for (const rp of room.players) {
+        if (rp.color === 'tv-host' || !rp.socketId) continue;
+        const rps = engine.playerState(rp.name);
+        if (rps) io.to(rp.socketId).emit('cooking_player_state', rps);
+      }
+      analytics.logEvent('move_made', roomId, socket.id, playerName, { action: 'claim_task', taskId, gameType: 'cooking' });
+    });
+
+    // ── Cooking: player tap (chopping mini-game) ─────────────────────
+    socket.on('cooking_tap', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      const room   = roomManager.getRoom(roomId);
+      if (!engine || !room) return;
+      if (roomGameTypes.get(roomId) !== 'cooking') return;
+      const playerName = socket.data.playerName;
+      const result = engine.tapAction(playerName);
+      if (!result.ok) {
+        socket.emit('cooking_action_error', { reason: result.reason });
+        return;
+      }
+      // Send personal state immediately
+      const ps = engine.playerState(playerName);
+      if (ps) socket.emit('cooking_player_state', ps);
+      // If task completed, broadcast full state to everyone
+      if (result.action === 'task_completed') {
+        const gs = engine.state();
+        io.to(roomId).emit('cooking_state', gs);
+        for (const rp of room.players) {
+          if (rp.color === 'tv-host' || !rp.socketId) continue;
+          const rps = engine.playerState(rp.name);
+          if (rps) io.to(rp.socketId).emit('cooking_player_state', rps);
+        }
+      }
+    });
+
+    // ── Cooking: player stir (stirring mini-game) ─────────────────────
+    socket.on('cooking_stir', ({ circles }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      const room   = roomManager.getRoom(roomId);
+      if (!engine || !room) return;
+      if (roomGameTypes.get(roomId) !== 'cooking') return;
+      const playerName = socket.data.playerName;
+      const result = engine.stirAction(playerName, circles || 1);
+      if (!result.ok) {
+        socket.emit('cooking_action_error', { reason: result.reason });
+        return;
+      }
+      const ps = engine.playerState(playerName);
+      if (ps) socket.emit('cooking_player_state', ps);
+      if (result.action === 'task_completed') {
+        const gs = engine.state();
+        io.to(roomId).emit('cooking_state', gs);
+        for (const rp of room.players) {
+          if (rp.color === 'tv-host' || !rp.socketId) continue;
+          const rps = engine.playerState(rp.name);
+          if (rps) io.to(rp.socketId).emit('cooking_player_state', rps);
+        }
+      }
+    });
+
+    // ── Cooking: player flip (QTE mini-game) ──────────────────────────
+    socket.on('cooking_flip', ({ timing }) => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      const room   = roomManager.getRoom(roomId);
+      if (!engine || !room) return;
+      if (roomGameTypes.get(roomId) !== 'cooking') return;
+      const playerName = socket.data.playerName;
+      const result = engine.flipAction(playerName, timing || 0);
+      if (!result.ok) {
+        socket.emit('cooking_action_error', { reason: result.reason });
+        return;
+      }
+      const ps = engine.playerState(playerName);
+      if (ps) socket.emit('cooking_player_state', ps);
+      if (result.action === 'task_completed') {
+        const gs = engine.state();
+        io.to(roomId).emit('cooking_state', gs);
+        for (const rp of room.players) {
+          if (rp.color === 'tv-host' || !rp.socketId) continue;
+          const rps = engine.playerState(rp.name);
+          if (rps) io.to(rp.socketId).emit('cooking_player_state', rps);
+        }
+      }
+      socket.emit('cooking_flip_result', { result: result.result || result.action });
+    });
+
+    // ── Snakes & Ladders: player rolls the dice ──────────────────────
+    socket.on('snakes_roll', () => {
+      const roomId = socket.data.roomId;
+      if (!roomId) return;
+      const engine = engines.get(roomId);
+      if (!engine) return socket.emit('error', { message: 'Game not started' });
+      const room = roomManager.getRoom(roomId);
+      if (!room) return;
+
+      const seat = seatForSlColor(socket.data.color);
+      if (seat < 0) return socket.emit('error', { message: 'Not a valid player colour' });
+
+      const result = engine.roll(seat);
+      if (!result.ok) return socket.emit('error', { message: result.reason });
+
+      io.to(roomId).emit('snakes_roll_result', {
+        seat,
+        dice:        result.dice,
+        newPosition: result.newPosition,
+        snakeFrom:   result.snakeFrom,
+        snakeTo:     result.snakeTo,
+        ladderFrom:  result.ladderFrom,
+        ladderTo:    result.ladderTo,
+        stayed:      result.stayed,
+        won:         result.won,
+        playerName:  socket.data.playerName
+      });
+
+      const payload = slPayload(roomId, room, engine);
+      io.to(roomId).emit('game_state', payload);
+      analytics.logEvent('move_made', roomId, socket.id, socket.data.playerName, { dice: result.dice, gameType: 'snakes-ladders' });
+
+      if (result.won) {
+        const winPlayer = room.players.find(p => seatForSlColor(p.color) === engine.winner());
+        if (winPlayer) leaderboard.recordWin('snakes-ladders', winPlayer.name);
+        io.to(roomId).emit('game_over', {
+          winner: winPlayer?.color || null,
+          reason: winPlayer ? `${winPlayer.name} reached 100! 🏆` : 'Game over!'
+        });
+        analytics.logEvent('game_ended', roomId, socket.id, socket.data.playerName, { winner: winPlayer?.color, gameType: 'snakes-ladders' });
+        engines.delete(roomId);
+        roomGameTypes.delete(roomId);
+      }
     });
 
     // ── Singapore Trivia: host starts/advances question ─────────────
@@ -1374,6 +1778,11 @@ module.exports = function wireEvents(io) {
       if (tvBoggleTimers.has(roomId)) {
         clearTimeout(tvBoggleTimers.get(roomId));
         tvBoggleTimers.delete(roomId);
+      }
+      // Clear any running Cooking tick timer
+      if (cookingTimers.has(roomId)) {
+        clearInterval(cookingTimers.get(roomId));
+        cookingTimers.delete(roomId);
       }
       // Clear engine so start_game can run fresh
       engines.delete(roomId);

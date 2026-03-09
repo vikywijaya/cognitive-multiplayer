@@ -92,6 +92,27 @@ const GAMES = {
     gamePage: '/tv-boggle.html',
     maxPlayers: 1,
     hostColors: ['tv-host']
+  },
+  reversi: {
+    title: 'Reversi (Othello)',
+    subtitle: 'Flip strategy board game — 2 players',
+    gamePage: '/reversi-game.html',
+    maxPlayers: 2,
+    hostColors: ['black']
+  },
+  'tv-reversi': {
+    title: 'TV Reversi',
+    subtitle: 'Smart TV Reversi — 2 Players',
+    gamePage: '/tv-reversi.html',
+    maxPlayers: 2,
+    hostColors: ['tv-host']
+  },
+  'snakes-ladders': {
+    title: 'Snakes & Ladders',
+    subtitle: 'Classic board game — 2 to 6 players',
+    gamePage: '/snakes-ladders.html',
+    maxPlayers: 2,
+    hostColors: ['red']
   }
 };
 

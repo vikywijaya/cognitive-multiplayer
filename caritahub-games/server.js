@@ -64,6 +64,26 @@ app.get('/tv-boggle-play', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'tv-boggle-play.html'));
 });
 
+// TV Reversi — TV display (host) page
+app.get('/tv-reversi', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tv-reversi.html'));
+});
+
+// TV Reversi — mobile player page (players scan QR to reach this)
+app.get('/tv-reversi-play', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tv-reversi-play.html'));
+});
+
+// TV Cooking — TV display (host) page
+app.get('/tv-cooking', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tv-cooking.html'));
+});
+
+// TV Cooking — mobile player page (players scan QR to reach this)
+app.get('/tv-cooking-play', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'tv-cooking-play.html'));
+});
+
 // Leaderboard endpoint
 app.get('/api/leaderboard', (req, res) => {
   const leaderboard = require('./src/leaderboard');

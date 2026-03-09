@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>Kitchen Rush! — Chef</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; min-height: 100vh; overflow-x: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: #1a0a2e; color: #fff;
+      -webkit-text-size-adjust: 100%;
+      touch-action: manipulation;
+    }
+
+    .screen { display: none; min-height: 100vh; flex-direction: column; }
+    .screen.active { display: flex; }
+
+    /* ── Join screen ── */
+    #joinScreen {
+      align-items: center; justify-content: center;
+      padding: 32px 24px; gap: 18px;
+      background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 100%);
+    }
+    .join-title { font-size: 30px; font-weight: 800; color: #ff9f43; text-align: center; }
+    .join-sub   { font-size: 16px; color: #aaa; text-align: center; }
+    .join-input {
+      width: 100%; max-width: 360px;
+      font-size: 20px; padding: 14px 18px;
+      border: 3px solid #ff9f43; border-radius: 12px;
+      background: rgba(255,255,255,0.07); color: #fff;
+      text-align: center; outline: none;
+    }
+    .join-input::placeholder { color: #666; }
+    .join-input:focus { border-color: #ffd700; }
+    .room-input {
+      width: 100%; max-width: 360px;
+      font-size: 28px; padding: 14px 18px;
+      border: 3px solid #4ecca3; border-radius: 12px;
+      background: rgba(255,255,255,0.07); color: #fff;
+      text-align: center; outline: none; text-transform: uppercase; letter-spacing: 4px;
+    }
+    .room-input::placeholder { color: #666; letter-spacing: 1px; text-transform: none; }
+    .room-input:focus { border-color: #ffd700; }
+    .join-btn {
+      width: 100%; max-width: 360px;
+      font-size: 20px; font-weight: 800; padding: 18px;
+      border: none; border-radius: 12px;
+      background: linear-gradient(90deg, #ff9f43, #ee5a24);
+      color: #fff; cursor: pointer;
+    }
+    .join-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .join-btn:active:not(:disabled) { transform: scale(0.97); }
+    .join-error { font-size: 15px; color: #ff6b6b; text-align: center; }
+
+    /* ── Waiting screen ── */
+    #waitScreen {
+      align-items: center; justify-content: center; gap: 24px;
+      background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 100%);
+    }
+    .wait-emoji { font-size: 72px; animation: spin 3s linear infinite; }
+    @keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+    .wait-title { font-size: 26px; font-weight: 800; color: #ff9f43; text-align: center; }
+    .wait-sub   { font-size: 18px; color: #aaa; text-align: center; padding: 0 24px; }
+
+    /* ── How to play (phone) ── */
+    #htpScreen {
+      align-items: center; justify-content: center; padding: 24px;
+      gap: 16px; overflow-y: auto;
+      background: linear-gradient(135deg, #1a0a2e 0%, #0d1b3e 50%, #2d1b4e 100%);
+    }
+    .htp-phone-title {
+      font-size: 28px; font-weight: 900;
+      color: #ffd700; text-align: center;
+    }
+    .htp-phone-steps {
+      display: flex; flex-direction: column; gap: 12px;
+      width: 100%; max-width: 380px;
+    }
+    .htp-step {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 16px; border-radius: 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
+      animation: htpStepIn 0.4s ease-out backwards;
+    }
+    .htp-step:nth-child(1) { animation-delay: 0.1s; }
+    .htp-step:nth-child(2) { animation-delay: 0.25s; }
+    .htp-step:nth-child(3) { animation-delay: 0.4s; }
+    .htp-step:nth-child(4) { animation-delay: 0.55s; }
+    @keyframes htpStepIn {
+      from { opacity: 0; transform: translateX(-20px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    .htp-step-icon { font-size: 36px; flex-shrink: 0; }
+    .htp-step-body { flex: 1; }
+    .htp-step-title { font-size: 17px; font-weight: 800; color: #ffd700; }
+    .htp-step-desc  { font-size: 13px; color: #bbb; margin-top: 2px; }
+
+    .htp-phone-countdown {
+      font-size: 22px; font-weight: 900; color: #ff9f43;
+      font-variant-numeric: tabular-nums;
+    }
+    .htp-phone-countdown span { font-size: 28px; color: #ffd700; }
+    .htp-phone-ready {
+      width: 100%; max-width: 300px; padding: 16px;
+      font-size: 20px; font-weight: 800;
+      background: linear-gradient(90deg, #2ecc71, #27ae60);
+      color: #fff; border: none; border-radius: 14px; cursor: pointer;
+      animation: htpBtnPulse 1.5s ease-in-out infinite;
+    }
+    .htp-phone-ready:active { transform: scale(0.97); }
+    @keyframes htpBtnPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(46,204,113,0.4); }
+      50%      { box-shadow: 0 0 0 10px rgba(46,204,113,0); }
+    }
+
+    /* ── Game screen ── */
+    #gameScreen { background: #1a0a2e; overflow-y: auto; }
+
+    .game-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px;
+      background: rgba(0,0,0,0.5);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      flex-shrink: 0; position: sticky; top: 0; z-index: 20;
+    }
+    .gh-name { font-size: 16px; font-weight: 700; }
+    .gh-score { font-size: 16px; font-weight: 700; color: #ff9f43; }
+    .gh-goal { font-size: 14px; font-weight: 800; color: #4ecca3; background: rgba(78,204,163,0.15); padding: 2px 8px; border-radius: 8px; }
+    .gh-timer { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .gh-timer.low { color: #ff6b6b; animation: pulse 0.5s infinite alternate; }
+    @keyframes pulse { from { opacity:1; } to { opacity:0.5; } }
+
+    /* ── Order Manager (Head Chef) ── */
+    .order-mgr {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, rgba(255,159,67,0.12), rgba(255,100,50,0.08));
+      border-bottom: 2px solid rgba(255,159,67,0.25);
+      flex-shrink: 0;
+    }
+    .mgr-chef { font-size: 42px; flex-shrink: 0; animation: chefBounce 1.8s ease-in-out infinite; }
+    @keyframes chefBounce {
+      0%,100% { transform: translateY(0); }
+      50%      { transform: translateY(-5px); }
+    }
+    .mgr-speech { flex: 1; overflow: hidden; }
+    .mgr-name { font-size: 12px; color: #ff9f43; font-weight: 800; text-transform: uppercase; letter-spacing: 1.5px; }
+    .mgr-hint {
+      font-size: 18px; font-weight: 800; color: #fff; line-height: 1.35;
+      margin-top: 2px;
+      transition: color 0.4s ease, opacity 0.4s ease;
+    }
+    .mgr-hint.changing { opacity: 0; }
+    .mgr-hint.urgent { color: #ff9f43; font-size: 20px; }
+
+    .game-body { flex: 1; padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+
+    /* ── Task choice screen ── */
+    .choose-title {
+      font-size: 20px; font-weight: 800; text-align: center;
+      color: #ffd700; margin-bottom: 4px;
+    }
+    .choose-subtitle {
+      font-size: 14px; color: #aaa; text-align: center; margin-bottom: 8px;
+    }
+
+    .task-cards { display: flex; flex-direction: column; gap: 10px; }
+
+    .task-card {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.06);
+      border: 2px solid rgba(255,255,255,0.12);
+      border-radius: 14px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.1s, border-color 0.2s, background 0.2s;
+    }
+    .task-card:active { transform: scale(0.97); }
+    .task-card:hover, .task-card:focus { border-color: #ff9f43; background: rgba(255,159,67,0.08); }
+
+    .tc-emoji { font-size: 36px; flex-shrink: 0; }
+    .tc-info { flex: 1; }
+    .tc-label { font-size: 17px; font-weight: 700; }
+    .tc-order { font-size: 13px; color: #aaa; margin-top: 2px; }
+    .tc-type-badge {
+      font-size: 11px; font-weight: 800; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 8px; letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+    .tc-type-badge.chopping { background: rgba(231,76,60,0.2); color: #e74c3c; }
+    .tc-type-badge.stirring { background: rgba(52,152,219,0.2); color: #3498db; }
+    .tc-type-badge.flipping { background: rgba(46,204,113,0.2); color: #2ecc71; }
+
+    .no-tasks {
+      text-align: center; padding: 40px 0;
+    }
+    .no-tasks-emoji { font-size: 60px; opacity: 0.3; }
+    .no-tasks-text { font-size: 18px; color: #555; margin-top: 10px; font-weight: 700; }
+
+    /* ── Active mini-game screen ── */
+    .minigame-header {
+      text-align: center; padding: 8px 0;
+    }
+    .mg-order { font-size: 14px; color: #aaa; }
+    .mg-emoji { font-size: 56px; margin: 4px 0; }
+    .mg-label { font-size: 22px; font-weight: 800; color: #ffd700; }
+    .mg-instruction { font-size: 15px; color: #bbb; margin-top: 4px; }
+
+    .minigame-area {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+      padding: 10px;
+    }
+
+    /* ── Progress bar (shared) ── */
+    .progress-bar {
+      width: 85%; max-width: 320px; height: 26px;
+      background: rgba(255,255,255,0.1); border-radius: 13px;
+      overflow: hidden; position: relative;
+    }
+    .progress-fill {
+      height: 100%; border-radius: 13px;
+      transition: width 0.1s;
+    }
+    .progress-fill.chop { background: linear-gradient(90deg, #e74c3c, #ff6b6b); }
+    .progress-fill.stir { background: linear-gradient(90deg, #3498db, #5dade2); }
+    .progress-text {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 800;
+    }
+
+    /* ── Chop button ── */
+    .chop-btn {
+      width: 180px; height: 180px; border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, #e74c3c, #c0392b);
+      color: #fff; font-size: 32px; font-weight: 900;
+      box-shadow: 0 8px 30px rgba(231,76,60,0.5);
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.06s; user-select: none; cursor: pointer;
+    }
+    .chop-btn:active { transform: scale(0.88); }
+
+    /* ── Stir pad ── */
+    .stir-pad {
+      width: 200px; height: 200px; border-radius: 50%;
+      background: radial-gradient(circle, #2980b9 0%, #1a5276 100%);
+      border: 4px solid rgba(52,152,219,0.5);
+      box-shadow: 0 8px 30px rgba(52,152,219,0.4);
+      position: relative; touch-action: none; cursor: pointer;
+    }
+    .stir-pad-text {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 800;
+      color: rgba(255,255,255,0.4); pointer-events: none;
+    }
+    .stir-indicator {
+      position: absolute;
+      width: 18px; height: 18px; background: #fff;
+      border-radius: 50%; top: 6px; left: 50%;
+      transform: translateX(-50%); pointer-events: none;
+      box-shadow: 0 0 10px rgba(255,255,255,0.8);
+    }
+
+    /* ── Flip QTE ── */
+    .flip-bar-container {
+      width: 85%; max-width: 320px; height: 50px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 12px; position: relative; overflow: hidden;
+    }
+    .flip-green-zone {
+      position: absolute; top: 0; bottom: 0;
+      left: 35%; width: 30%;
+      background: rgba(46,204,113,0.35);
+      border-left: 2px solid #2ecc71; border-right: 2px solid #2ecc71;
+    }
+    .flip-marker {
+      position: absolute; top: 4px; bottom: 4px;
+      width: 6px; background: #fff; border-radius: 3px;
+      box-shadow: 0 0 8px rgba(255,255,255,0.8);
+    }
+    .flip-btn {
+      width: 160px; height: 70px; border-radius: 14px;
+      border: none;
+      background: linear-gradient(135deg, #2ecc71, #27ae60);
+      color: #fff; font-size: 22px; font-weight: 900;
+      box-shadow: 0 6px 20px rgba(46,204,113,0.5);
+      -webkit-tap-highlight-color: transparent;
+      cursor: pointer;
+    }
+    .flip-btn:active { transform: scale(0.93); }
+    .flip-result {
+      font-size: 26px; font-weight: 900; min-height: 36px;
+    }
+    .flip-result.perfect { color: #2ecc71; }
+    .flip-result.miss    { color: #ff6b6b; }
+
+    /* ── Task complete overlay ── */
+    .task-done-overlay {
+      position: fixed; inset: 0;
+      background: rgba(46,204,113,0.85);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 10px;
+      z-index: 200;
+      animation: doneAnim 1.2s ease-out forwards;
+    }
+    @keyframes doneAnim {
+      0%  { opacity:0; transform:scale(0.8); }
+      20% { opacity:1; transform:scale(1.05); }
+      40% { transform:scale(1); }
+      80% { opacity:1; }
+      100%{ opacity:0; }
+    }
+    .task-done-star { font-size: 72px; }
+    .task-done-text { font-size: 30px; font-weight: 900; color: #fff; }
+
+    /* ── Game over ── */
+    #gameoverScreen {
+      align-items: center; justify-content: center; gap: 20px;
+      background: linear-gradient(135deg, #1a0a2e 0%, #2d1b4e 100%);
+    }
+    .go-emoji  { font-size: 80px; }
+    .go-title  { font-size: 36px; font-weight: 900; color: #ffd700; }
+    .go-score  { font-size: 28px; color: #ccc; }
+    .go-score span { color: #ffd700; font-weight: 900; font-size: 36px; }
+    .go-sub { font-size: 18px; color: #aaa; text-align: center; max-width: 300px; }
+
+    /* ── Reconnect ── */
+    .reconnect {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.8);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 700; z-index: 999;
+    }
+    .reconnect.hidden { display: none; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      background: rgba(255,100,100,0.9); color: #fff;
+      padding: 10px 20px; border-radius: 10px;
+      font-size: 15px; font-weight: 700; z-index: 200;
+      animation: toastFade 2s ease-out forwards;
+    }
+    @keyframes toastFade { 0%{opacity:1;} 80%{opacity:1;} 100%{opacity:0;} }
+  </style>
+</head>
+<body>
+
+  <!-- Join -->
+  <div id="joinScreen" class="screen active">
+    <div class="join-title">🍳 Kitchen Rush!</div>
+    <div class="join-sub">Enter the room code shown on the TV</div>
+    <input id="roomInput" class="room-input" type="text" maxlength="8" placeholder="ROOM CODE" autocomplete="off" spellcheck="false" />
+    <input id="nameInput" class="join-input" type="text" maxlength="20" placeholder="Your name" autocomplete="off" />
+    <button id="joinBtn" class="join-btn">Join Kitchen!</button>
+    <div id="joinError" class="join-error"></div>
+  </div>
+
+  <!-- Waiting -->
+  <div id="waitScreen" class="screen">
+    <div class="wait-emoji">🍳</div>
+    <div class="wait-title">Waiting for game to start…</div>
+    <div class="wait-sub" id="waitMsg">Watch the TV and get ready!</div>
+  </div>
+
+  <!-- How To Play (phone) -->
+  <div id="htpScreen" class="screen">
+    <div class="htp-phone-title">How To Play</div>
+    <div class="htp-phone-steps">
+      <div class="htp-step">
+        <div class="htp-step-icon">🍽️</div>
+        <div class="htp-step-body">
+          <div class="htp-step-title">Watch the TV Tables</div>
+          <div class="htp-step-desc">Customers sit at tables on the TV! Their mood emoji shows urgency — 😊 patient → 😡 furious as time runs out</div>
+        </div>
+      </div>
+      <div class="htp-step">
+        <div class="htp-step-icon">👨‍🍳</div>
+        <div class="htp-step-body">
+          <div class="htp-step-title">Head Chef Tells You What to Do</div>
+          <div class="htp-step-desc">The Head Chef shouts hints! Listen up and grab the task he recommends — urgent tables first!</div>
+        </div>
+      </div>
+      <div class="htp-step">
+        <div class="htp-step-icon">🎮</div>
+        <div class="htp-step-body">
+          <div class="htp-step-title">Do the Mini-Game</div>
+          <div class="htp-step-desc">🔪 Chop: tap the button fast! &nbsp;🥄 Stir: swipe in circles! &nbsp;👆 Flip: hit the green zone!</div>
+        </div>
+      </div>
+      <div class="htp-step">
+        <div class="htp-step-icon">🏆</div>
+        <div class="htp-step-body">
+          <div class="htp-step-title">Serve 8 Tables to Win!</div>
+          <div class="htp-step-desc">All 3 tasks done → the table gets their food! Team up to serve 8 tables and WIN!</div>
+        </div>
+      </div>
+    </div>
+    <div class="htp-phone-countdown">Starting in <span id="phoneHtpCountdown">10</span>…</div>
+    <button id="phoneReadyBtn" class="htp-phone-ready">I'm Ready!</button>
+  </div>
+
+  <!-- Game screen -->
+  <div id="gameScreen" class="screen">
+    <div class="game-header">
+      <span class="gh-name" id="ghName"></span>
+      <span class="gh-score" id="ghScore">0 pts</span>
+      <span class="gh-goal" id="ghGoal">0/8</span>
+      <span class="gh-timer" id="ghTimer">3:00</span>
+    </div>
+    <!-- Order Manager (Head Chef hints) -->
+    <div class="order-mgr" id="orderMgr">
+      <div class="mgr-chef">👨‍🍳</div>
+      <div class="mgr-speech">
+        <div class="mgr-name">Head Chef</div>
+        <div class="mgr-hint" id="mgrHint">Welcome to the kitchen! Pick a task!</div>
+      </div>
+    </div>
+    <div class="game-body" id="gameBody">
+      <!-- Filled dynamically: either task choice list or active mini-game -->
+    </div>
+  </div>
+
+  <!-- Game Over -->
+  <div id="gameoverScreen" class="screen">
+    <div class="go-emoji" id="goEmoji">🏆</div>
+    <div class="go-title" id="goTitle">Time's Up!</div>
+    <div class="go-score">Score: <span id="goScore">0</span></div>
+    <div class="go-sub" id="goSub"></div>
+  </div>
+
+  <!-- Reconnect -->
+  <div id="reconnectOverlay" class="reconnect hidden">Reconnecting…</div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/cooking-sfx.js"></script>
+  <script>
+  'use strict';
+  const socket = io({ transports: ['websocket', 'polling'] });
+
+  // ── DOM ────────────────────────────────────────────────────────────────
+  const joinScreen     = document.getElementById('joinScreen');
+  const waitScreen     = document.getElementById('waitScreen');
+  const htpScreen      = document.getElementById('htpScreen');
+  const gameScreen     = document.getElementById('gameScreen');
+  const gameoverScreen = document.getElementById('gameoverScreen');
+  const phoneHtpCountdown = document.getElementById('phoneHtpCountdown');
+  const phoneReadyBtn  = document.getElementById('phoneReadyBtn');
+  const roomInput      = document.getElementById('roomInput');
+  const nameInput      = document.getElementById('nameInput');
+  const joinBtn        = document.getElementById('joinBtn');
+  const joinError      = document.getElementById('joinError');
+  const ghName         = document.getElementById('ghName');
+  const ghScore        = document.getElementById('ghScore');
+  const ghGoal         = document.getElementById('ghGoal');
+  const ghTimer        = document.getElementById('ghTimer');
+  const gameBody       = document.getElementById('gameBody');
+  const goScore        = document.getElementById('goScore');
+  const reconnectOverlay = document.getElementById('reconnectOverlay');
+
+  // ── State ──────────────────────────────────────────────────────────────
+  let myName = '', myColor = '', myRoomId = null;
+  let gameActive = false;
+  let currentView = 'choose'; // 'choose' or 'minigame'
+  let currentTaskId = null;
+  let flipAnimFrame = null;
+  let phoneHtpTimer = null;
+  let pendingPlayerState = null;
+  let lastGS = null; // latest full game state for hint generation
+
+  // Pre-fill room code from URL
+  const params = new URLSearchParams(location.search);
+  const preRoom = params.get('room') || '';
+  if (preRoom) roomInput.value = preRoom.toUpperCase();
+
+  // ── Helpers ────────────────────────────────────────────────────────────
+  function showScreen(id) {
+    [joinScreen, waitScreen, htpScreen, gameScreen, gameoverScreen].forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  // ── Order Manager: Head Chef hints ─────────────────────────────────────
+  function updateMgrHint(context) {
+    const el = document.getElementById('mgrHint');
+    if (!el) return;
+    // Force re-trigger CSS animation by cloning
+    el.classList.remove('urgent');
+    let hint = '';
+    let urgent = false;
+
+    if (context === 'chopping') {
+      hint = '💪 CHOP CHOP! Tap as fast as you can!';
+    } else if (context === 'stirring') {
+      hint = '🌀 Keep those circles going! Round and round!';
+    } else if (context === 'flipping') {
+      hint = '👀 Watch the bar... tap when it hits the GREEN zone!';
+    } else if (context === 'complete') {
+      hint = '🎉 Excellent! Now grab your next task!';
+    } else {
+      // 'choose' context — analyse game state
+      const gs = lastGS;
+      if (!gs || !gs.orders) {
+        hint = '📺 Check the TV and pick a task!';
+      } else {
+        const orders = gs.orders;
+        const allTasks = orders.flatMap(o => o.tasks);
+        const openTasks = allTasks.filter(t => t.status === 'available');
+
+        // Find most urgent order
+        const byUrgency = orders
+          .map(o => ({ ...o, frac: o.timeLeft / o.maxTime }))
+          .sort((a, b) => a.frac - b.frac);
+        const mostUrgent = byUrgency[0];
+
+        if (mostUrgent && mostUrgent.frac < 0.15) {
+          hint = `😡 "${mostUrgent.recipeName}" customers are LEAVING! GO NOW!`;
+          urgent = true;
+        } else if (mostUrgent && mostUrgent.frac < 0.3) {
+          hint = `😤 Hurry! The "${mostUrgent.recipeName}" table is furious!`;
+          urgent = true;
+        } else if (mostUrgent && mostUrgent.frac < 0.45) {
+          hint = `😐 The "${mostUrgent.recipeName}" table is getting impatient!`;
+        } else {
+          const chopOpen = openTasks.filter(t => t.type === 'chopping').length;
+          const stirOpen = openTasks.filter(t => t.type === 'stirring').length;
+          const flipOpen = openTasks.filter(t => t.type === 'flipping').length;
+
+          if (chopOpen >= 2)       hint = '🔪 The cutting board is backed up! Grab a chop task!';
+          else if (stirOpen >= 2)  hint = '🥄 The sauces need attention! Stir something NOW!';
+          else if (flipOpen > 0)   hint = '👆 A flip job is waiting! Time it just right!';
+          else if (openTasks.length === 0 && orders.length > 0)
+                                   hint = '👌 Team\'s on it! Cheer them on!';
+          else if (orders.length === 0)
+                                   hint = '🍳 No orders yet... stay sharp!';
+          else {
+            // Name a specific task
+            const t = openTasks[0];
+            if (t) {
+              const order = orders.find(o => o.tasks.some(ot => ot.id === t.id));
+              hint = order ? `📋 "${order.recipeName}" needs ${t.label}! Grab it!`
+                           : '📺 Pick a task from the TV orders!';
+            } else {
+              hint = '📺 Check the TV! Pick a task for a waiting table!';
+            }
+          }
+        }
+      }
+    }
+
+    // Only update if text actually changed — prevents constant blinking
+    if (el.textContent === hint) return;
+
+    // Smooth crossfade: fade out, swap text, fade in
+    el.classList.add('changing');
+    el.classList.toggle('urgent', urgent);
+    setTimeout(() => {
+      el.textContent = hint;
+      el.classList.remove('changing');
+    }, 200);
+  }
+
+  // ── How To Play (phone) ────────────────────────────────────────────────
+  function startPhoneHowToPlay() {
+    showScreen('htpScreen');
+    let remaining = 10;
+    phoneHtpCountdown.textContent = remaining;
+    phoneHtpTimer = setInterval(() => {
+      remaining--;
+      phoneHtpCountdown.textContent = remaining;
+      if (remaining <= 3 && remaining > 0) SFX.tick();
+      if (remaining <= 0) endPhoneHowToPlay();
+    }, 1000);
+  }
+  function endPhoneHowToPlay() {
+    if (phoneHtpTimer) { clearInterval(phoneHtpTimer); phoneHtpTimer = null; }
+    SFX.go();
+    showScreen('gameScreen');
+    if (pendingPlayerState) {
+      renderPlayerState(pendingPlayerState);
+      pendingPlayerState = null;
+    }
+  }
+  phoneReadyBtn.addEventListener('click', () => {
+    SFX.click();
+    endPhoneHowToPlay();
+  });
+  function formatTime(ms) {
+    const s = Math.ceil(ms / 1000);
+    return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
+  }
+  function esc(s) {
+    return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : '';
+  }
+  function toast(msg) {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.textContent = msg;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2200);
+  }
+  function showTaskComplete() {
+    SFX.taskComplete();
+    updateMgrHint('complete');
+    const ol = document.createElement('div');
+    ol.className = 'task-done-overlay';
+    ol.innerHTML = '<div class="task-done-star">⭐</div><div class="task-done-text">Good Job!</div>';
+    document.body.appendChild(ol);
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    setTimeout(() => ol.remove(), 1300);
+  }
+
+  // ── Join flow ──────────────────────────────────────────────────────────
+  function doJoin() {
+    const room = roomInput.value.trim().toUpperCase();
+    const name = nameInput.value.trim();
+    joinError.textContent = '';
+    if (!room) { joinError.textContent = 'Enter the room code from the TV.'; return; }
+    if (!name) { joinError.textContent = 'Enter your name.'; return; }
+    myName = name; myRoomId = room;
+    joinBtn.disabled = true;
+    socket.emit('join_game', { gameType: 'cooking', playerName: name, roomId: room });
+  }
+  joinBtn.addEventListener('click', doJoin);
+  nameInput.addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+  roomInput.addEventListener('keydown', e => { if (e.key === 'Enter') nameInput.focus(); });
+  roomInput.addEventListener('input', () => { roomInput.value = roomInput.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  RENDERING: Task choice vs Mini-game
+  // ══════════════════════════════════════════════════════════════════════
+
+  function renderPlayerState(ps) {
+    ghName.textContent = ps.name || myName;
+    if (ps.color) ghName.style.color = ps.color;
+    ghScore.textContent = `${ps.score || 0} pts`;
+
+    // If we have a current task claimed, show mini-game
+    if (ps.currentTask) {
+      if (currentView !== 'minigame' || currentTaskId !== ps.currentTask.id) {
+        currentView = 'minigame';
+        currentTaskId = ps.currentTask.id;
+        cancelFlipAnim();
+        renderMiniGame(ps.currentTask);
+      } else {
+        // Update progress in-place
+        updateMiniGameProgress(ps.currentTask);
+      }
+    } else {
+      // No active task — show task choice
+      const prevTaskId = currentTaskId;
+      if (currentView !== 'choose') {
+        cancelFlipAnim();
+        currentView = 'choose';
+        currentTaskId = null;
+        // If we previously had a task, it was completed!
+        if (prevTaskId !== null) {
+          showTaskComplete();
+        }
+      }
+      renderTaskChoices(ps.availableTasks || []);
+    }
+  }
+
+  // ── TASK CHOICE LIST ───────────────────────────────────────────────────
+
+  function renderTaskChoices(tasks) {
+    updateMgrHint('choose');
+    if (!tasks.length) {
+      gameBody.innerHTML = `
+        <div class="choose-title">Watch the TV!</div>
+        <div class="no-tasks">
+          <div class="no-tasks-emoji">🍽️</div>
+          <div class="no-tasks-text">No tasks open right now…<br>New customers arriving soon!</div>
+        </div>
+      `;
+      return;
+    }
+
+    let html = `
+      <div class="choose-title">Pick a Task!</div>
+      <div class="choose-subtitle">Match the tables on the TV — urgent tables first!</div>
+      <div class="task-cards">
+    `;
+
+    for (const t of tasks) {
+      html += `
+        <div class="task-card" data-task-id="${t.id}">
+          <div class="tc-emoji">${t.emoji}</div>
+          <div class="tc-info">
+            <div class="tc-label">${esc(t.label)}</div>
+            <div class="tc-order">${t.orderEmoji} ${esc(t.orderName)}</div>
+          </div>
+          <div class="tc-type-badge ${t.type}">${
+            t.type === 'chopping' ? '🔪 Chop' :
+            t.type === 'stirring' ? '🥄 Stir' :
+            '👆 Flip'
+          }</div>
+        </div>
+      `;
+    }
+    html += '</div>';
+    gameBody.innerHTML = html;
+
+    // Attach click handlers
+    gameBody.querySelectorAll('.task-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const taskId = parseInt(card.dataset.taskId, 10);
+        SFX.taskClaimed();
+        socket.emit('cooking_claim_task', { taskId });
+      });
+    });
+  }
+
+  // ── MINI-GAME RENDERING ────────────────────────────────────────────────
+
+  function renderMiniGame(task) {
+    updateMgrHint(task.type);
+    if (task.type === 'chopping') renderChoppingGame(task);
+    else if (task.type === 'stirring') renderStirringGame(task);
+    else if (task.type === 'flipping') renderFlippingGame(task);
+  }
+
+  // ── CHOPPING ───────────────────────────────────────────────────────────
+
+  function renderChoppingGame(task) {
+    const pct = Math.round((task.progress / task.targetTaps) * 100);
+    gameBody.innerHTML = `
+      <div class="minigame-header">
+        <div class="mg-order">${task.orderEmoji || ''} ${esc(task.orderName || '')}</div>
+        <div class="mg-emoji">${task.emoji}</div>
+        <div class="mg-label">${esc(task.label)}</div>
+        <div class="mg-instruction">Tap rapidly to chop!</div>
+      </div>
+      <div class="minigame-area">
+        <div class="progress-bar">
+          <div class="progress-fill chop" id="chopFill" style="width:${pct}%"></div>
+          <div class="progress-text" id="chopText">${task.progress} / ${task.targetTaps}</div>
+        </div>
+        <button class="chop-btn" id="chopBtn">🔪<br>CHOP!</button>
+      </div>
+    `;
+    const btn = document.getElementById('chopBtn');
+    btn.addEventListener('touchstart', e => { e.preventDefault(); SFX.chop(); socket.emit('cooking_tap'); }, { passive: false });
+    btn.addEventListener('click', () => { SFX.chop(); socket.emit('cooking_tap'); });
+  }
+
+  function updateChoppingProgress(task) {
+    const fill = document.getElementById('chopFill');
+    const text = document.getElementById('chopText');
+    if (!fill) return;
+    const pct = Math.round((task.progress / task.targetTaps) * 100);
+    fill.style.width = `${pct}%`;
+    if (text) text.textContent = `${task.progress} / ${task.targetTaps}`;
+  }
+
+  // ── STIRRING ───────────────────────────────────────────────────────────
+
+  let stirLastAngle = null, stirAccum = 0;
+
+  function renderStirringGame(task) {
+    stirLastAngle = null; stirAccum = 0;
+    const pct = Math.round((task.progress / task.targetCircles) * 100);
+    gameBody.innerHTML = `
+      <div class="minigame-header">
+        <div class="mg-order">${task.orderEmoji || ''} ${esc(task.orderName || '')}</div>
+        <div class="mg-emoji">${task.emoji}</div>
+        <div class="mg-label">${esc(task.label)}</div>
+        <div class="mg-instruction">Swipe in circles to stir!</div>
+      </div>
+      <div class="minigame-area">
+        <div class="progress-bar">
+          <div class="progress-fill stir" id="stirFill" style="width:${pct}%"></div>
+          <div class="progress-text" id="stirText">${task.progress} / ${task.targetCircles}</div>
+        </div>
+        <div class="stir-pad" id="stirPad">
+          <div class="stir-pad-text">🥄 Stir</div>
+          <div class="stir-indicator" id="stirIndicator"></div>
+        </div>
+      </div>
+    `;
+
+    const pad = document.getElementById('stirPad');
+    const indicator = document.getElementById('stirIndicator');
+
+    function handleMove(cx, cy) {
+      const r = pad.getBoundingClientRect();
+      const mx = r.left + r.width / 2;
+      const my = r.top + r.height / 2;
+      const angle = Math.atan2(cy - my, cx - mx);
+
+      // Move indicator
+      const radius = r.width / 2 - 14;
+      indicator.style.left = `${Math.cos(angle) * radius + r.width / 2 - 9}px`;
+      indicator.style.top  = `${Math.sin(angle) * radius + r.height / 2 - 9}px`;
+
+      if (stirLastAngle !== null) {
+        let delta = angle - stirLastAngle;
+        if (delta > Math.PI) delta -= 2 * Math.PI;
+        if (delta < -Math.PI) delta += 2 * Math.PI;
+        stirAccum += Math.abs(delta);
+        if (stirAccum >= Math.PI * 2) {
+          stirAccum -= Math.PI * 2;
+          SFX.stir();
+          socket.emit('cooking_stir', { circles: 1 });
+        }
+      }
+      stirLastAngle = angle;
+    }
+
+    pad.addEventListener('touchmove', e => { e.preventDefault(); handleMove(e.touches[0].clientX, e.touches[0].clientY); }, { passive: false });
+    pad.addEventListener('mousemove', e => { if (e.buttons) handleMove(e.clientX, e.clientY); });
+    pad.addEventListener('touchend', () => { stirLastAngle = null; });
+    pad.addEventListener('mouseup', () => { stirLastAngle = null; });
+  }
+
+  function updateStirringProgress(task) {
+    const fill = document.getElementById('stirFill');
+    const text = document.getElementById('stirText');
+    if (!fill) return;
+    const pct = Math.round((task.progress / task.targetCircles) * 100);
+    fill.style.width = `${pct}%`;
+    if (text) text.textContent = `${task.progress} / ${task.targetCircles}`;
+  }
+
+  // ── FLIPPING QTE ───────────────────────────────────────────────────────
+
+  let flipPos = 0, flipDir = 1;
+  const FLIP_SPEED = 0.018;
+
+  function renderFlippingGame(task) {
+    flipPos = 0; flipDir = 1;
+    gameBody.innerHTML = `
+      <div class="minigame-header">
+        <div class="mg-order">${task.orderEmoji || ''} ${esc(task.orderName || '')}</div>
+        <div class="mg-emoji">${task.emoji}</div>
+        <div class="mg-label">${esc(task.label)}</div>
+        <div class="mg-instruction">Tap FLIP when the bar is in the GREEN zone!</div>
+      </div>
+      <div class="minigame-area">
+        <div class="flip-bar-container">
+          <div class="flip-green-zone"></div>
+          <div class="flip-marker" id="flipMarker"></div>
+        </div>
+        <button class="flip-btn" id="flipBtn">FLIP!</button>
+        <div class="flip-result" id="flipResult"></div>
+      </div>
+    `;
+    document.getElementById('flipBtn').addEventListener('touchstart', e => { e.preventDefault(); doFlip(); }, { passive: false });
+    document.getElementById('flipBtn').addEventListener('click', doFlip);
+    startFlipAnim();
+  }
+
+  function startFlipAnim() {
+    cancelFlipAnim();
+    function animate() {
+      flipPos += flipDir * FLIP_SPEED;
+      if (flipPos >= 1) { flipPos = 1; flipDir = -1; }
+      if (flipPos <= 0) { flipPos = 0; flipDir = 1; }
+      const m = document.getElementById('flipMarker');
+      if (m) m.style.left = `${flipPos * 100}%`;
+      flipAnimFrame = requestAnimationFrame(animate);
+    }
+    flipAnimFrame = requestAnimationFrame(animate);
+  }
+  function cancelFlipAnim() { if (flipAnimFrame) { cancelAnimationFrame(flipAnimFrame); flipAnimFrame = null; } }
+  function doFlip() { SFX.flipSwoosh(); socket.emit('cooking_flip', { timing: flipPos }); }
+
+  // ── Update progress without full re-render ─────────────────────────────
+
+  function updateMiniGameProgress(task) {
+    if (task.type === 'chopping') updateChoppingProgress(task);
+    else if (task.type === 'stirring') updateStirringProgress(task);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  //  SOCKET EVENTS
+  // ══════════════════════════════════════════════════════════════════════
+
+  socket.on('connect', () => {
+    reconnectOverlay.classList.add('hidden');
+    if (myRoomId && myName) {
+      socket.emit('join_game', { gameType: 'cooking', playerName: myName, roomId: myRoomId, reconnect: true });
+    }
+  });
+  socket.on('disconnect', () => reconnectOverlay.classList.remove('hidden'));
+
+  socket.on('joined', ({ roomId: rid, color }) => {
+    myRoomId = rid; myColor = color;
+    joinBtn.disabled = false;
+    showScreen('waitScreen');
+  });
+
+  socket.on('error', ({ message }) => {
+    joinError.textContent = message;
+    joinBtn.disabled = false;
+  });
+
+  socket.on('cooking_started', (gs) => {
+    gameActive = true;
+    currentView = 'choose';
+    currentTaskId = null;
+    ghTimer.textContent = formatTime(gs.timeLeftMs || 0);
+    // Show how-to-play first
+    startPhoneHowToPlay();
+  });
+
+  socket.on('cooking_state', (gs) => {
+    if (!gameActive) return;
+    lastGS = gs;
+    const ms = gs.timeLeftMs || 0;
+    ghTimer.textContent = formatTime(ms);
+    ghTimer.classList.toggle('low', ms < 30000);
+    if (gs.goal && gs.stats) {
+      ghGoal.textContent = `${gs.stats.ordersFilled || 0}/${gs.goal}`;
+    }
+    // Update chef hint only when player is choosing (not mid mini-game)
+    if (currentView === 'choose') updateMgrHint('choose');
+  });
+
+  socket.on('cooking_player_state', (ps) => {
+    if (!gameActive) {
+      // Game started via reconnect
+      gameActive = true;
+      showScreen('gameScreen');
+    }
+    // Buffer state if still in how-to-play
+    if (htpScreen.classList.contains('active')) {
+      pendingPlayerState = ps;
+      return;
+    }
+    renderPlayerState(ps);
+  });
+
+  socket.on('cooking_flip_result', ({ result }) => {
+    const el = document.getElementById('flipResult');
+    if (!el) return;
+    if (result === 'perfect' || result === 'task_completed') {
+      SFX.flipPerfect();
+      el.className = 'flip-result perfect'; el.textContent = 'Perfect!';
+    } else {
+      SFX.flipMiss();
+      el.className = 'flip-result miss'; el.textContent = 'Miss! Try again!';
+    }
+    setTimeout(() => { if (el) el.textContent = ''; }, 1200);
+  });
+
+  socket.on('cooking_game_over', ({ score, won }) => {
+    if (won) SFX.victory(); else SFX.gameOver();
+    gameActive = false;
+    cancelFlipAnim();
+    if (phoneHtpTimer) { clearInterval(phoneHtpTimer); phoneHtpTimer = null; }
+    currentView = 'choose'; currentTaskId = null;
+    goScore.textContent = score || 0;
+    const goEmoji = document.getElementById('goEmoji');
+    const goTitle = document.getElementById('goTitle');
+    const goSub   = document.getElementById('goSub');
+    if (won) {
+      goEmoji.textContent = '🎉';
+      goTitle.textContent = 'You Won!';
+      goTitle.style.color = '#4ecca3';
+      goSub.textContent = 'All orders served! Amazing teamwork!';
+    } else {
+      goEmoji.textContent = '⏰';
+      goTitle.textContent = "Time's Up!";
+      goTitle.style.color = '#ffd700';
+      goSub.textContent = 'Better luck next time!';
+    }
+    showScreen('gameoverScreen');
+  });
+
+  socket.on('play_again', () => {
+    gameActive = false; cancelFlipAnim();
+    currentView = 'choose'; currentTaskId = null;
+    showScreen('waitScreen');
+  });
+
+  socket.on('cooking_action_error', ({ reason }) => toast(reason));
+  </script>
+</body>
+</html>

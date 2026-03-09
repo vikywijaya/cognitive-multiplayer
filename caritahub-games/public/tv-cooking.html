@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CaritaHub Kitchen Rush!</title>
+  <link rel="stylesheet" href="/css/tv-cooking.css" />
+</head>
+<body>
+
+  <!-- Lobby Phase -->
+  <div id="lobbyPhase" class="phase active">
+    <div class="lobby-title">🍳 Kitchen Rush!</div>
+    <div class="lobby-subtitle">Multiplayer Cooking — Scan with your phone to join as a chef!</div>
+    <div class="lobby-body">
+      <div class="qr-section">
+        <div class="qr-box"><div id="qrcode"></div></div>
+        <div class="qr-instruction">Scan with phone camera</div>
+        <div id="joinUrl" class="qr-url"></div>
+      </div>
+      <div class="player-section">
+        <div class="player-section-title">Chefs Joined</div>
+        <div id="lobbyPlayerList" class="player-list">
+          <div class="player-empty">Waiting for chefs…</div>
+        </div>
+        <button id="startBtn" class="start-btn" disabled>Start Cooking!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- How To Play Phase -->
+  <div id="howToPlayPhase" class="phase">
+    <div class="htp-container">
+      <div class="htp-title">How To Play</div>
+      <div class="htp-grid">
+        <div class="htp-card">
+          <div class="htp-card-icon">🍽️</div>
+          <div class="htp-card-title">Watch the Tables</div>
+          <div class="htp-card-desc">Customers sit at tables waiting for their food! Their mood changes: 😊 patient → 😤 impatient → 😡 furious as time runs out!</div>
+        </div>
+        <div class="htp-card">
+          <div class="htp-card-icon">👨‍🍳</div>
+          <div class="htp-card-title">Head Chef Hints</div>
+          <div class="htp-card-desc">On your phone, the Head Chef tells you which table needs help most. Pick the task he shouts about!</div>
+        </div>
+        <div class="htp-card">
+          <div class="htp-card-icon">🎮</div>
+          <div class="htp-card-title">Mini-Games</div>
+          <div class="htp-card-desc">🔪 Chop: tap like crazy! &nbsp;🥄 Stir: swipe in circles! &nbsp;👆 Flip: time the green zone!</div>
+        </div>
+        <div class="htp-card">
+          <div class="htp-card-icon">🏆</div>
+          <div class="htp-card-title">Serve 8 Tables!</div>
+          <div class="htp-card-desc">Finish all 3 steps of an order → the table gets served! First team to serve 8 tables wins!</div>
+        </div>
+      </div>
+      <div class="htp-bottom">
+        <div class="htp-tip">Work together — each player can handle a different task at the same time!</div>
+        <div class="htp-countdown">Starting in <span id="htpCountdown">10</span>…</div>
+        <button id="htpReadyBtn" class="htp-ready-btn">Ready! Let's Cook!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Playing Phase -->
+  <div id="playingPhase" class="phase">
+    <!-- Top HUD -->
+    <div class="top-hud">
+      <span class="hud-title">🍳 Kitchen Rush!</span>
+      <span class="hud-timer" id="timerDisplay">3:00</span>
+      <span class="hud-score" id="scoreDisplay">0 pts</span>
+      <span class="hud-goal" id="goalDisplay">0/8 Orders</span>
+      <span class="hud-difficulty" id="difficultyDisplay">Easy</span>
+    </div>
+    <!-- Master Chef Announcer -->
+    <div class="chef-announcer" id="chefAnnouncer">
+      <div class="chef-announcer-avatar">👨‍🍳</div>
+      <div class="chef-announcer-bubble">
+        <div class="chef-announcer-label">Head Chef</div>
+        <div class="chef-announcer-text" id="chefAnnouncerText">Let's get cooking!</div>
+      </div>
+    </div>
+    <!-- Main game area: tables | kitchen | tables -->
+    <div class="game-area">
+      <!-- Left dining tables -->
+      <div class="dining-side" id="tablesLeft"></div>
+      <!-- Center kitchen -->
+      <div class="kitchen-scene" id="kitchenScene">
+        <div class="kitchen-floor"></div>
+        <!-- Stations -->
+        <div class="station station-chop" id="stationChop">
+          <div class="station-body">🔪</div>
+          <div class="station-label">Chop</div>
+        </div>
+        <div class="station station-stove" id="stationStove">
+          <div class="station-body">🍳</div>
+          <div class="station-label">Stove</div>
+        </div>
+        <div class="station station-plate" id="stationPlate">
+          <div class="station-body">🍽️</div>
+          <div class="station-label">Plate</div>
+        </div>
+        <!-- Serving window -->
+        <div class="serving-window" id="servingWindow"></div>
+        <!-- Avatars -->
+        <div id="avatarsContainer"></div>
+      </div>
+      <!-- Right dining tables -->
+      <div class="dining-side" id="tablesRight"></div>
+    </div>
+    <!-- Chefs bar (bottom) -->
+    <div class="chefs-bar" id="chefsBar"></div>
+  </div>
+
+  <!-- Game Over Phase -->
+  <div id="gameoverPhase" class="phase">
+    <div class="gameover-emoji">🏆</div>
+    <div class="gameover-title">Time's Up!</div>
+    <div class="gameover-score">Final Score: <span id="finalScore">0</span></div>
+    <div class="gameover-stats" id="gameoverStats"></div>
+    <button id="playAgainBtn" class="gameover-btn">Play Again</button>
+  </div>
+
+  <!-- Reconnect overlay -->
+  <div id="reconnectOverlay" class="reconnect-overlay hidden">Connection lost. Reconnecting…</div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="/js/cooking-sfx.js"></script>
+  <script src="/js/tv-cooking.js"></script>
+</body>
+</html>

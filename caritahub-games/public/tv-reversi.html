@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CaritaHub TV Reversi</title>
+  <link rel="stylesheet" href="/css/tv-reversi.css" />
+</head>
+<body>
+
+  <!-- ── Lobby Phase ── -->
+  <div id="lobbyPhase" class="tv-phase tv-lobby active">
+    <div class="tv-lobby-title">CaritaHub TV Reversi</div>
+    <div class="tv-lobby-subtitle">Scan the QR code with your phone to join!</div>
+    <div class="tv-lobby-body">
+      <div class="tv-qr-section">
+        <div class="tv-qr-box">
+          <div id="qrcode"></div>
+        </div>
+        <div class="tv-qr-instruction">Scan with your phone camera</div>
+        <div id="joinUrl" class="tv-qr-url"></div>
+      </div>
+      <div class="tv-player-section">
+        <div class="tv-player-section-title">Players Joined</div>
+        <div id="lobbyPlayerList" class="tv-player-list">
+          <div class="tv-player-empty">Waiting for players…</div>
+        </div>
+        <button id="startBtn" class="tv-start-btn" disabled>Start Game</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Playing Phase ── -->
+  <div id="playingPhase" class="tv-phase tv-playing">
+    <div class="tv-info-panel">
+      <div class="tv-playing-title">CaritaHub TV Reversi</div>
+
+      <!-- Black player card -->
+      <div id="blackCard" class="tv-player-card">
+        <div class="tv-disc-icon tv-disc-black"></div>
+        <div class="tv-player-name-big" id="blackName">Black</div>
+        <div class="tv-player-disc-count" id="blackCount">2</div>
+      </div>
+
+      <!-- White player card -->
+      <div id="whiteCard" class="tv-player-card">
+        <div class="tv-disc-icon tv-disc-white"></div>
+        <div class="tv-player-name-big" id="whiteName">White</div>
+        <div class="tv-player-disc-count" id="whiteCount">2</div>
+      </div>
+
+      <!-- Turn indicator -->
+      <div id="turnIndicator" class="tv-turn-indicator">Waiting…</div>
+    </div>
+
+    <div class="tv-board-wrap">
+      <canvas id="tvBoardCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- ── Game Over Phase ── -->
+  <div id="gameoverPhase" class="tv-phase tv-gameover">
+    <div class="tv-gameover-emoji" id="gameoverEmoji">🏆</div>
+    <div class="tv-gameover-title" id="gameoverTitle">Game Over</div>
+    <div id="gameoverWinnerName" class="tv-gameover-winner-name"></div>
+    <div id="gameoverWinner" class="tv-gameover-winner"></div>
+    <div class="tv-gameover-btns">
+      <button id="playAgainBtn" class="tv-gameover-btn tv-btn-play-again">Play Again</button>
+    </div>
+  </div>
+
+  <!-- ── Confetti Container ── -->
+  <div id="confettiContainer" class="tv-confetti-container hidden"></div>
+
+  <!-- ── Reconnect Overlay ── -->
+  <div id="reconnectOverlay" class="tv-reconnect hidden">
+    Connection lost. Reconnecting…
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="/js/tv-reversi.js"></script>
+</body>
+</html>

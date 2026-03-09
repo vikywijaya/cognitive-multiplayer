@@ -1,0 +1,353 @@
+/* ── TV Reversi — optimised for 1080p TV display at 2–3m viewing distance ── */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background: linear-gradient(135deg, #0a1f0a 0%, #162e16 50%, #0d2610 100%);
+  color: #fff;
+}
+
+/* ── Phase containers ── */
+.tv-phase { display: none; width: 100vw; height: 100vh; }
+.tv-phase.active { display: flex; }
+
+/* ── Lobby Phase ── */
+.tv-lobby {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3vh;
+}
+
+.tv-lobby-title {
+  font-size: 6vw;
+  font-weight: 900;
+  text-align: center;
+  text-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  letter-spacing: 0.05em;
+  color: #4ecca3;
+}
+
+.tv-lobby-subtitle {
+  font-size: 2.5vw;
+  color: #aab;
+  text-align: center;
+}
+
+.tv-lobby-body {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 6vw;
+  width: 90vw;
+}
+
+.tv-qr-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2vh;
+}
+
+.tv-qr-box {
+  background: #fff;
+  border-radius: 1.5vw;
+  padding: 1.5vw;
+  box-shadow: 0 0 40px rgba(255,255,255,0.15);
+}
+
+.tv-qr-box canvas, .tv-qr-box img {
+  width: 28vh !important;
+  height: 28vh !important;
+}
+
+.tv-qr-instruction {
+  font-size: 2vw;
+  color: #ffd700;
+  font-weight: 700;
+  text-align: center;
+}
+
+.tv-qr-url {
+  font-size: 1.2vw;
+  color: #88a;
+  word-break: break-all;
+  text-align: center;
+  max-width: 35vw;
+}
+
+.tv-player-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5vh;
+  min-width: 28vw;
+}
+
+.tv-player-section-title {
+  font-size: 2.5vw;
+  font-weight: 700;
+  color: #ffd700;
+}
+
+.tv-player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1vh;
+}
+
+.tv-player-item {
+  display: flex;
+  align-items: center;
+  gap: 1vw;
+  font-size: 2.2vw;
+  font-weight: 600;
+  padding: 0.8vh 1.5vw;
+  background: rgba(255,255,255,0.08);
+  border-radius: 1vw;
+  border-left: 0.5vw solid #4ecca3;
+}
+
+.tv-player-empty {
+  font-size: 2vw;
+  color: #667;
+  font-style: italic;
+}
+
+.tv-start-btn {
+  font-size: 2.5vw;
+  font-weight: 800;
+  padding: 2vh 5vw;
+  background: #4ecca3;
+  color: #1a1a2e;
+  border: none;
+  border-radius: 1.5vw;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: transform 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 20px rgba(78,204,163,0.4);
+  align-self: flex-start;
+}
+.tv-start-btn:hover { transform: scale(1.03); box-shadow: 0 6px 30px rgba(78,204,163,0.6); }
+.tv-start-btn:disabled {
+  background: #334;
+  color: #889;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* ── Playing Phase ── */
+.tv-playing {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 3vw;
+  padding: 2vh 3vw;
+}
+
+.tv-info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5vh;
+  width: 24vw;
+  flex-shrink: 0;
+}
+
+.tv-playing-title {
+  font-size: 2.8vw;
+  font-weight: 900;
+  color: #4ecca3;
+  letter-spacing: 0.02em;
+}
+
+.tv-player-card {
+  display: flex;
+  align-items: center;
+  gap: 1.5vw;
+  padding: 1.5vh 2vw;
+  background: rgba(255,255,255,0.06);
+  border-radius: 1.2vw;
+  border-left: 0.6vw solid #444;
+  transition: border-color 0.3s, background 0.3s;
+}
+
+.tv-player-card.active {
+  border-left-color: #ffd700;
+  background: rgba(255,215,0,0.12);
+  animation: tvCardPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes tvCardPulse {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 20px rgba(255,215,0,0.25); }
+}
+
+.tv-disc-icon {
+  width: 3.5vw;
+  height: 3.5vw;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+.tv-disc-black {
+  background: radial-gradient(circle at 35% 35%, #555, #111);
+  border: 0.15vw solid #333;
+}
+.tv-disc-white {
+  background: radial-gradient(circle at 35% 35%, #fff, #ccc);
+  border: 0.15vw solid #aaa;
+}
+
+.tv-player-name-big {
+  font-size: 2.3vw;
+  font-weight: 700;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tv-player-disc-count {
+  font-size: 4.5vw;
+  font-weight: 900;
+  color: #ffd700;
+  line-height: 1;
+  min-width: 3vw;
+  text-align: right;
+}
+
+.tv-turn-indicator {
+  font-size: 1.8vw;
+  color: #4ecca3;
+  font-weight: 700;
+  text-align: center;
+  padding: 1.2vh 1.5vw;
+  background: rgba(78,204,163,0.1);
+  border-radius: 0.8vw;
+  min-height: 5vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.1vw solid rgba(78,204,163,0.2);
+}
+
+/* ── Board ── */
+.tv-board-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#tvBoardCanvas {
+  width: min(72vh, 60vw);
+  height: min(72vh, 60vw);
+  display: block;
+  border-radius: 0.5vw;
+  box-shadow: 0 0 60px rgba(0,0,0,0.6), 0 0 30px rgba(45,106,79,0.4);
+}
+
+/* ── Game Over Phase ── */
+.tv-gameover {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3vh;
+}
+
+.tv-gameover-emoji {
+  font-size: 12vw;
+  animation: tvBounce 1s ease-in-out infinite alternate;
+}
+
+@keyframes tvBounce {
+  0%   { transform: scale(1); }
+  100% { transform: scale(1.1); }
+}
+
+.tv-gameover-title {
+  font-size: 10vw;
+  font-weight: 900;
+  color: #ffd700;
+  text-shadow: 0 4px 30px rgba(255,215,0,0.5);
+}
+
+.tv-gameover-winner-name {
+  font-size: 6vw;
+  font-weight: 900;
+  color: #4ecca3;
+  text-shadow: 0 4px 20px rgba(78,204,163,0.5);
+  animation: tvWinnerPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes tvWinnerPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.tv-gameover-winner {
+  font-size: 3vw;
+  font-weight: 700;
+  color: #aab;
+}
+
+.tv-gameover-btns {
+  display: flex;
+  gap: 2vw;
+  margin-top: 2vh;
+}
+
+.tv-gameover-btn {
+  font-size: 2.5vw;
+  font-weight: 800;
+  padding: 2vh 4vw;
+  border: none;
+  border-radius: 1.5vw;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+}
+
+.tv-btn-play-again {
+  background: #4ecca3;
+  color: #1a1a2e;
+}
+
+/* ── Reconnect Overlay ── */
+.tv-reconnect {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3vw;
+  z-index: 100;
+}
+
+/* ── Confetti ── */
+.tv-confetti-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 99;
+  overflow: hidden;
+}
+
+.tv-confetti-piece {
+  position: absolute;
+  top: -20px;
+  opacity: 0;
+  animation: tvConfettiFall 4s ease-in forwards;
+}
+
+@keyframes tvConfettiFall {
+  0%   { opacity: 1; top: -20px; transform: rotate(0deg) scale(1); }
+  100% { opacity: 0; top: 110vh; transform: rotate(720deg) scale(0.5); }
+}
+
+.hidden { display: none !important; }
