@@ -413,11 +413,15 @@ function bikeRaceTick(io, roomId) {
     clearInterval(bikeRaceTimers.get(roomId));
     bikeRaceTimers.delete(roomId);
     const winnerName = engine.winner();
-    const rankings = gs.players.map(p => ({ name: p.name, rank: p.rank, finishTime: p.finishTime }));
+    const rankings = gs.players.map(p => ({
+      name: p.name, emoji: p.emoji, color: p.color,
+      rank: p.rank, finishTime: p.finishTime,
+      bestLap: p.bestLap, lapTimes: p.lapTimes,
+    }));
     io.to(roomId).emit('bike_race_game_over', { winner: winnerName, rankings });
     if (winnerName) leaderboard.recordWin('bike-race', winnerName);
     engines.delete(roomId);
-    roomGameTypes.delete(roomId);
+    // Keep roomGameTypes so players can race again in the same room
     analytics.logEvent('game_ended', roomId, 'server', 'timer', { winner: winnerName, gameType: 'bike-race' });
   }
 }
@@ -1864,8 +1868,11 @@ module.exports = function wireEvents(io) {
         bikeRaceTimers.delete(roomId);
       }
       // Clear engine so start_game can run fresh
+      const savedGameType = roomGameTypes.get(roomId);
       engines.delete(roomId);
       roomGameTypes.delete(roomId);
+      // Preserve game type for bike-race so players can restart without rejoining
+      if (savedGameType === 'bike-race') roomGameTypes.set(roomId, 'bike-race');
 
       // Tell everyone to return to the waiting screen
       io.to(roomId).emit('play_again');

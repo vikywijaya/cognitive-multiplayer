@@ -97,6 +97,7 @@
   // Commentary state
   let lastLeaderName   = null;
   const commentFinished = new Set();
+  const lastPlayerLaps  = new Map();   // id → last known lap
   let lastCommentAt    = 0;
   let commentHideTimer = null;
   let commentCooldown  = false;
@@ -125,9 +126,19 @@
   // ── Race Commentator ──────────────────────────────────────────────────────
   const LINES = {
     start: [
-      "🚲 They're off! Let's RACE!!",
+      "🚲 They're off! 3 laps to glory — let's RACE!!",
       "💨 And the race begins! Pedal HARDER!",
-      "🏁 The race is ON! Who will cross first?",
+      "🏁 3 laps! Who will cross the finish line first?",
+    ],
+    lap2: [
+      (n, e) => `🔄 ${e} ${n} completes lap 1 — into lap 2!`,
+      (n, e) => `⚡ ${n} is first onto lap 2!`,
+      (n, e) => `🚲 ${n} charges into lap 2!`,
+    ],
+    lap3: [
+      (n, e) => `🔥 ${e} ${n} is on the FINAL LAP!!`,
+      (n, e) => `🚨 FINAL LAP for ${n}! Give it everything!`,
+      (n, e) => `🏁 ${n} enters the LAST lap! Can they hold on?!`,
     ],
     lead: [
       (n, e) => `${e} ${n} surges to the front!`,
@@ -173,9 +184,31 @@
     if (commentCooldown) return;
     if (Date.now() - lastCommentAt < 2200) return;
 
-    const sorted = [...gs.players].sort((a, b) => b.position - a.position);
+    const sorted = [...gs.players].sort((a, b) => {
+      const aProgress = (a.lap || 1) * 2000 + (a.position || 0);
+      const bProgress = (b.lap || 1) * 2000 + (b.position || 0);
+      return bProgress - aProgress;
+    });
     const leader = sorted[0];
     if (!leader) return;
+
+    // Priority 0: lap completions (lap increase detected)
+    for (const p of gs.players) {
+      const prevLap = lastPlayerLaps.get(p.id) || 1;
+      const curLap  = p.lap || 1;
+      if (curLap > prevLap && !p.finished) {
+        lastPlayerLaps.set(p.id, curLap);
+        if (curLap === 3) {
+          say(pickRandom(LINES.lap3)(p.name, p.emoji), 3000);
+          BikeRaceSFX.finalStretch();
+        } else {
+          say(pickRandom(LINES.lap2)(p.name, p.emoji), 2500);
+          BikeRaceSFX.leaderChange();
+        }
+        return;
+      }
+      lastPlayerLaps.set(p.id, curLap);
+    }
 
     // Priority 1: new finishers
     for (const p of gs.players) {
@@ -207,8 +240,8 @@
 
     // Priority 3: close race
     if (sorted.length > 1 && !leader.finished) {
-      const gap = (sorted[0].position - sorted[1].position) / 2000;
-      if (gap < 0.07 && leader.progress > 0.25) {
+      const gap = sorted[0].progress - sorted[1].progress;
+      if (gap < 0.04 && leader.progress > 0.15) {
         say(pickRandom(LINES.close));
         BikeRaceSFX.crowd();
         return;
@@ -321,6 +354,7 @@
         <div class="lane-info">
           <div class="lane-rank" id="rank-${p.id}">—</div>
           <div class="lane-name" style="color:${p.color}">${esc(p.name)}</div>
+          <div class="lane-lap" id="lap-${p.id}">Lap 1/3</div>
           <div class="lane-speed" id="speed-${p.id}">0 km/h</div>
         </div>
         <div class="lane-body">
@@ -355,10 +389,17 @@
       const avatarEl = document.getElementById(`avatar-${p.id}`);
       const bikeEl   = document.getElementById(`bike-${p.id}`);
       const rankEl   = document.getElementById(`rank-${p.id}`);
+      const lapEl    = document.getElementById(`lap-${p.id}`);
       const speedEl  = document.getElementById(`speed-${p.id}`);
       const dashEl   = document.getElementById(`dashes-${p.id}`);
       const flagEl   = document.getElementById(`flag-${p.id}`);
       if (!avatarEl) continue;
+
+      // Lap counter
+      if (lapEl) {
+        lapEl.textContent = `Lap ${p.lap || 1}/${p.totalLaps || 3}`;
+        lapEl.className = 'lane-lap' + (p.lap === 3 ? ' lap-final' : '');
+      }
 
       // Map progress 0→1 to 2%→90% so avatar visually reaches the finish line (right:10%)
       const pct = 2 + (p.progress * 88);
@@ -402,7 +443,7 @@
     }
   }
 
-  // ── Winner banner ─────────────────────────────────────────────────────────
+  // ── Race summary / winner banner ──────────────────────────────────────────
   function showWinner(gs) {
     raceOver = true;
     if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
@@ -411,14 +452,17 @@
     const first  = sorted[0];
     if (!first) return;
 
-    const podiumHtml = sorted.slice(0, 3).map((p, i) => {
-      const medals  = ['🥇', '🥈', '🥉'];
-      const timeStr = p.finishTime ? formatElapsed(p.finishTime) : '—';
-      return `<div class="podium-item">
-        <div class="podium-rank">${medals[i]}</div>
-        <div class="podium-emoji">${p.emoji}</div>
-        <div class="podium-name" style="color:${p.color}">${esc(p.name)}</div>
-        <div class="podium-time">${timeStr}</div>
+    const medals = ['🥇', '🥈', '🥉'];
+
+    const summaryRows = sorted.map((p, i) => {
+      const timeStr   = p.finishTime ? formatElapsed(p.finishTime) : '—';
+      const bestLapStr = p.bestLap   ? `⚡ ${formatElapsed(p.bestLap)}` : '';
+      const isWinner  = i === 0;
+      return `<div class="summary-row${isWinner ? ' summary-row-winner' : ''}">
+        <div class="summary-medal">${medals[i] || (i + 1) + 'th'}</div>
+        <div class="summary-avatar">${p.emoji} <span class="summary-name-text" style="color:${p.color}">${esc(p.name)}</span></div>
+        <div class="summary-time">${timeStr}</div>
+        <div class="summary-bestlap">${bestLapStr}</div>
       </div>`;
     }).join('');
 
@@ -426,11 +470,22 @@
     banner.className = 'winner-banner';
     banner.innerHTML = `
       <div class="winner-content">
-        <div class="winner-trophy">🏆</div>
-        <div class="winner-label">WINNER!</div>
-        <div class="winner-name" style="color:${first.color}">${esc(first.name)}</div>
-        <div class="winner-emoji">${first.emoji} 🚲</div>
-        <div class="winner-podium">${podiumHtml}</div>
+        <div class="winner-top">
+          <div class="winner-trophy">🏆</div>
+          <div class="winner-label">WINNER!</div>
+          <div class="winner-name" style="color:${first.color}">${esc(first.name)}</div>
+          <div class="winner-emoji">${first.emoji} 🚲</div>
+        </div>
+        <div class="race-summary">
+          <div class="race-summary-header">🏁 Race Results — 3 Laps</div>
+          <div class="race-summary-cols">
+            <div class="summary-col-label"></div>
+            <div class="summary-col-label"></div>
+            <div class="summary-col-label">Total Time</div>
+            <div class="summary-col-label">Best Lap</div>
+          </div>
+          <div class="race-summary-rows">${summaryRows}</div>
+        </div>
         <button class="play-again-btn" id="playAgainBtn">Play Again</button>
       </div>
     `;
@@ -480,6 +535,7 @@
     // Reset commentary state
     lastLeaderName = null;
     commentFinished.clear();
+    lastPlayerLaps.clear();
     lastCommentAt  = 0;
 
     const racers = gs.players;

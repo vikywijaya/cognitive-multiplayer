@@ -311,6 +311,12 @@ html, body {
 .lane-rank.rank-2 { color: #c0c0c0; }
 .lane-rank.rank-3 { color: #cd7f32; }
 .lane-name  { font-size: 16px; font-weight: 700; color: #fff; margin-top: 2px; }
+.lane-lap   { font-size: 12px; font-weight: 700; color: #4ecca3; margin-top: 2px; letter-spacing: 0.5px; }
+.lane-lap.lap-final { color: #ff6b35; animation: lapFinalPulse 0.6s ease-in-out infinite alternate; }
+@keyframes lapFinalPulse {
+  from { color: #ff6b35; }
+  to   { color: #ffd700; }
+}
 .lane-speed { font-size: 13px; color: #aaa; margin-top: 2px; }
 
 /* Finish flag column */
@@ -358,29 +364,52 @@ html, body {
   text-align: center;
   background: linear-gradient(135deg, #1a0a2e, #2d1540);
   border: 3px solid #ffd700;
-  border-radius: 24px; padding: 40px 60px;
+  border-radius: 24px; padding: 28px 48px 36px;
   box-shadow: 0 0 60px rgba(255,215,0,0.4);
+  max-width: 680px; width: 90vw;
+  max-height: 92vh; overflow-y: auto;
 }
-.winner-trophy  { font-size: 80px; animation: trophyBounce 0.6s ease-in-out infinite alternate; }
+.winner-top { display: flex; flex-direction: column; align-items: center; }
+.winner-trophy  { font-size: 72px; animation: trophyBounce 0.6s ease-in-out infinite alternate; }
 @keyframes trophyBounce {
   from { transform: translateY(0) rotate(-5deg); }
   to   { transform: translateY(-12px) rotate(5deg); }
 }
-.winner-label  { font-size: 28px; color: #aaa; margin-top: 8px; }
-.winner-name   { font-size: 64px; font-weight: 900; color: #ffd700; margin-top: 4px; }
-.winner-emoji  { font-size: 56px; margin-top: 8px; }
-.winner-podium {
-  display: flex; gap: 20px; margin-top: 20px; justify-content: center;
+.winner-label  { font-size: 24px; color: #aaa; margin-top: 6px; }
+.winner-name   { font-size: 52px; font-weight: 900; color: #ffd700; margin-top: 2px; }
+.winner-emoji  { font-size: 48px; margin-top: 6px; }
+
+/* Race summary table */
+.race-summary {
+  width: 100%; margin: 20px 0 0;
+  background: rgba(255,255,255,0.04);
+  border-radius: 14px; padding: 14px 16px;
 }
-.podium-item {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 10px 16px; border-radius: 12px;
-  background: rgba(255,255,255,0.08);
+.race-summary-header {
+  font-size: 17px; font-weight: 800; color: #f39c12;
+  margin-bottom: 10px; text-align: center; letter-spacing: 1px;
 }
-.podium-rank  { font-size: 22px; font-weight: 900; }
-.podium-emoji { font-size: 28px; }
-.podium-name  { font-size: 16px; color: #ccc; }
-.podium-time  { font-size: 13px; color: #888; }
+.race-summary-cols {
+  display: grid; grid-template-columns: 44px 1fr 100px 90px;
+  padding: 0 8px; margin-bottom: 4px;
+}
+.summary-col-label { font-size: 11px; color: #666; text-align: right; }
+.summary-col-label:nth-child(2) { text-align: left; }
+.race-summary-rows { display: flex; flex-direction: column; gap: 6px; }
+.summary-row {
+  display: grid; grid-template-columns: 44px 1fr 100px 90px;
+  align-items: center; padding: 8px 8px;
+  border-radius: 10px; background: rgba(255,255,255,0.04);
+}
+.summary-row-winner {
+  background: rgba(255,215,0,0.12);
+  border: 1px solid rgba(255,215,0,0.3);
+}
+.summary-medal     { font-size: 22px; }
+.summary-avatar    { font-size: 15px; display: flex; align-items: center; gap: 6px; }
+.summary-name-text { font-weight: 700; }
+.summary-time      { font-size: 15px; font-weight: 700; color: #fff; text-align: right; }
+.summary-bestlap   { font-size: 12px; color: #4ecca3; text-align: right; padding-left: 6px; }
 
 .play-again-btn {
   margin-top: 28px; padding: 16px 48px;

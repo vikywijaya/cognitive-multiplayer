@@ -111,6 +111,12 @@
       flex-shrink: 0;
     }
     .hud-name  { font-size: 16px; font-weight: 700; }
+    .hud-lap   {
+      font-size: 13px; font-weight: 800; color: #4ecca3;
+      background: rgba(78,204,163,0.15); border-radius: 8px;
+      padding: 2px 8px; letter-spacing: 0.5px;
+    }
+    .hud-lap.final-lap { color: #ff6b35; background: rgba(255,107,53,0.15); }
     .hud-rank  { font-size: 18px; font-weight: 900; color: #f39c12; }
     .hud-rank.first  { color: #ffd700; }
     .hud-rank.second { color: #c0c0c0; }
@@ -248,6 +254,32 @@
     .fin-rank   { font-size: 64px; font-weight: 900; color: #ffd700; }
     .fin-sub    { font-size: 20px; color: #aaa; text-align: center; max-width: 300px; }
     .fin-time   { font-size: 18px; color: #888; }
+
+    /* Race summary table on finished screen */
+    .race-results {
+      width: 100%; max-width: 360px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 14px; padding: 14px 16px;
+    }
+    .race-results-title {
+      font-size: 15px; font-weight: 800; color: #f39c12;
+      text-align: center; margin-bottom: 10px; letter-spacing: 1px;
+    }
+    .result-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 8px; border-radius: 8px;
+      margin-bottom: 4px; font-size: 14px;
+    }
+    .result-row.me {
+      background: rgba(255,215,0,0.12);
+      border: 1px solid rgba(255,215,0,0.3);
+      font-weight: 800;
+    }
+    .result-medal { font-size: 18px; width: 24px; }
+    .result-name  { flex: 1; }
+    .result-time  { color: #aaa; font-size: 13px; }
+    .result-best  { color: #4ecca3; font-size: 12px; }
+
     .race-again-btn {
       margin-top: 8px;
       width: 100%; max-width: 320px;
@@ -298,6 +330,7 @@
   <div id="gameScreen" class="screen">
     <div class="game-hud">
       <span class="hud-name" id="hudName"></span>
+      <span class="hud-lap" id="hudLap">Lap 1/3</span>
       <span class="hud-rank" id="hudRank">—</span>
     </div>
     <div class="progress-section">
@@ -341,6 +374,7 @@
     <div class="fin-rank" id="finRank">🥇</div>
     <div class="fin-sub" id="finSub">Watch the TV for final results!</div>
     <div class="fin-time" id="finTime"></div>
+    <div class="race-results" id="raceResults" style="display:none"></div>
     <button class="race-again-btn" id="raceAgainBtn">🔄 Race Again!</button>
   </div>
 
@@ -380,6 +414,8 @@
   const finRank          = document.getElementById('finRank');
   const finSub           = document.getElementById('finSub');
   const finTime          = document.getElementById('finTime');
+  const raceResults      = document.getElementById('raceResults');
+  const hudLap           = document.getElementById('hudLap');
   const raceAgainBtn     = document.getElementById('raceAgainBtn');
   const reconnectOverlay = document.getElementById('reconnectOverlay');
 
@@ -496,7 +532,7 @@
   function updatePlayerState(ps) {
     if (!ps) return;
 
-    // Progress
+    // Progress (overall across all laps)
     const pct = Math.round(ps.progress * 100);
     progressFill.style.width = `${pct}%`;
     progressPct.textContent  = `${pct}%`;
@@ -505,6 +541,13 @@
     // Speed
     const speedPct = Math.min(100, (ps.speed / MAX_SPEED) * 100);
     speedFill.style.width = `${speedPct}%`;
+
+    // Lap indicator
+    if (hudLap && ps.lap) {
+      const total = ps.totalLaps || 3;
+      hudLap.textContent = `Lap ${ps.lap}/${total}`;
+      hudLap.className = 'hud-lap' + (ps.lap === total ? ' final-lap' : '');
+    }
 
     // Rank
     const rank = ps.rank || 1;
@@ -612,7 +655,25 @@
       // Player didn't finish in time
       const myRanking = rankings && rankings.find(r => r.name === myName);
       const rank = myRanking ? myRanking.rank : null;
-      showFinished({ finished: true, rank, finishTime: null });
+      showFinished({ finished: true, rank, finishTime: myRanking?.finishTime || null });
+    }
+    // Show full results table
+    if (raceResults && rankings) {
+      const medals = ['🥇', '🥈', '🥉'];
+      const sorted = [...rankings].sort((a, b) => (a.rank || 99) - (b.rank || 99));
+      raceResults.innerHTML = `<div class="race-results-title">🏁 Final Results — 3 Laps</div>` +
+        sorted.map((r, i) => {
+          const timeStr = r.finishTime ? formatElapsed(r.finishTime) : '—';
+          const bestStr = r.bestLap    ? `⚡ ${formatElapsed(r.bestLap)}` : '';
+          const isMe    = r.name === myName;
+          return `<div class="result-row${isMe ? ' me' : ''}">
+            <span class="result-medal">${medals[i] || (i + 1) + 'th'}</span>
+            <span class="result-name">${r.emoji || ''} <span style="color:${r.color || '#fff'}">${r.name}</span></span>
+            <span class="result-time">${timeStr}</span>
+            <span class="result-best">${bestStr}</span>
+          </div>`;
+        }).join('');
+      raceResults.style.display = 'block';
     }
   });
 
@@ -623,6 +684,8 @@
     updatePedalHighlight();
     progressFill.style.width = '0%';
     speedFill.style.width    = '0%';
+    if (hudLap) { hudLap.textContent = 'Lap 1/3'; hudLap.className = 'hud-lap'; }
+    if (raceResults) { raceResults.innerHTML = ''; raceResults.style.display = 'none'; }
     raceAgainBtn.disabled    = false;
     raceAgainBtn.textContent = '🔄 Race Again!';
     showScreen('waitScreen');
@@ -634,16 +697,14 @@
     const rank = ps.rank || 1;
     const medals = ['🥇', '🥈', '🥉'];
     const emojis = { 1: '🎉', 2: '🙌', 3: '💪', 4: '😅', 5: '😤', 6: '😤' };
-    const messages = { 1: 'You won! Amazing pedaling!', 2: 'Great race! So close!', 3: 'Nice effort! Well done!', 4: 'Good effort! Keep training!', 5: 'Keep pedaling next time!', 6: 'Better luck next race!' };
+    const messages = { 1: '3 laps done — You WON! 🏆', 2: 'Great race! So close!', 3: 'Nice effort! Well done!', 4: 'Good effort! Keep training!', 5: 'Keep pedaling next time!', 6: 'Better luck next race!' };
 
     finEmoji.textContent = emojis[rank] || '🏁';
     finTitle.textContent = rank === 1 ? 'You Won!' : 'Race Finished!';
     finRank.textContent  = (medals[rank - 1] || rank + 'th') + ' Place';
     finRank.style.color  = rank === 1 ? '#ffd700' : rank === 2 ? '#c0c0c0' : rank === 3 ? '#cd7f32' : '#aaa';
     finSub.textContent   = messages[rank] || 'Race complete!';
-    if (ps.finishTime) {
-      finTime.textContent = `Time: ${formatElapsed(ps.finishTime)}`;
-    }
+    finTime.textContent  = ps.finishTime ? `Time: ${formatElapsed(ps.finishTime)}` : '';
     showScreen('finishedScreen');
   }
   </script>

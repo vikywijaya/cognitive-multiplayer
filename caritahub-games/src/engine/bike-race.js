@@ -13,17 +13,18 @@
  *   - Same side twice in a row: reduced boost (+SPEED_PER_TAP_SAME)
  *   - Speed decays each tick when not tapping
  *
- * Win: First player to reach 100% of the track wins!
+ * Win: First player to complete TOTAL_LAPS laps wins!
  */
 
-const TRACK_LENGTH    = 2000;              // track units (0 → 2000 = finish)
+const TRACK_LENGTH    = 2000;              // track units per lap (0 → 2000 = lap complete)
+const TOTAL_LAPS      = 3;                // number of laps to finish the race
 const MAX_PLAYERS     = 6;
 const TICK_MS         = 100;              // server tick interval
 const SPEED_PER_TAP_ALTERNATE = 2.0;     // speed boost for alternating pedal tap
 const SPEED_PER_TAP_SAME      = 0.6;     // speed boost for same-side repeat tap
 const MAX_SPEED       = 10;              // max speed units per tick
 const SPEED_DECAY     = 0.87;            // multiplied each tick (100 ms)
-const GAME_TIMEOUT_MS = 120_000;         // 2-minute maximum race time
+const GAME_TIMEOUT_MS = 240_000;         // 4-minute maximum race time (3 laps)
 
 const PLAYER_COLORS = ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c'];
 const PLAYER_EMOJIS = ['🐢', '🐇', '🦊', '🐻', '🦔', '🐼'];
@@ -31,7 +32,7 @@ const PLAYER_EMOJIS = ['🐢', '🐇', '🦊', '🐻', '🦔', '🐼'];
 // ── Engine factory ────────────────────────────────────────────────────────────
 
 function createGame() {
-  const players = [];   // { id, name, color, emoji, position, speed, lastPedal, finished, finishTime, rank }
+  const players = [];   // { id, name, color, emoji, position, speed, lastPedal, lap, lapStartTime, lapTimes, bestLap, finished, finishTime, rank }
   let started    = false;
   let over       = false;
   let elapsed    = 0;
@@ -45,14 +46,18 @@ function createGame() {
     const idx = players.length;
     const p = {
       id, name,
-      color:      PLAYER_COLORS[idx],
-      emoji:      PLAYER_EMOJIS[idx],
-      position:   0,          // 0 → TRACK_LENGTH
-      speed:      0,          // current speed (units per tick)
-      lastPedal:  null,       // 'left' | 'right' | null
-      finished:   false,
-      finishTime: null,
-      rank:       null,
+      color:        PLAYER_COLORS[idx],
+      emoji:        PLAYER_EMOJIS[idx],
+      position:     0,          // 0 → TRACK_LENGTH (per lap)
+      speed:        0,          // current speed (units per tick)
+      lastPedal:    null,       // 'left' | 'right' | null
+      lap:          1,          // current lap (1-based)
+      lapStartTime: 0,          // elapsed ms at start of current lap
+      lapTimes:     [],         // time taken for each completed lap
+      bestLap:      null,       // best lap time in ms
+      finished:     false,
+      finishTime:   null,
+      rank:         null,
     };
     players.push(p);
     return p;
@@ -98,11 +103,11 @@ function createGame() {
     lastTickAt = now;
     elapsed += dt;
 
-    // 2-minute timeout — assign final ranks by position
+    // timeout — assign final ranks by lap then position
     if (elapsed >= GAME_TIMEOUT_MS) {
       const unfinished = players
         .filter(p => !p.finished)
-        .sort((a, b) => b.position - a.position);
+        .sort((a, b) => b.lap - a.lap || b.position - a.position);
       let r = finishCount + 1;
       for (const p of unfinished) { p.rank = r++; p.finished = true; }
       over = true;
@@ -120,11 +125,24 @@ function createGame() {
       const movement = player.speed * (dt / TICK_MS);
       player.position = Math.min(TRACK_LENGTH, player.position + movement);
 
-      // Finish line
-      if (player.position >= TRACK_LENGTH && !player.finished) {
-        player.finished  = true;
-        player.finishTime = elapsed;
-        player.rank      = ++finishCount;
+      // Lap / finish line
+      if (player.position >= TRACK_LENGTH) {
+        const lapTime = elapsed - player.lapStartTime;
+        player.lapTimes.push(lapTime);
+        if (player.bestLap === null || lapTime < player.bestLap) player.bestLap = lapTime;
+        player.lapStartTime = elapsed;
+
+        if (player.lap < TOTAL_LAPS) {
+          // Complete this lap, start next
+          player.lap++;
+          player.position -= TRACK_LENGTH; // wrap around
+        } else {
+          // Final lap done — finished!
+          player.position  = TRACK_LENGTH;
+          player.finished  = true;
+          player.finishTime = elapsed;
+          player.rank      = ++finishCount;
+        }
       }
     }
 
@@ -142,11 +160,14 @@ function createGame() {
     elapsed    = 0;
   }
 
-  // ── Live rank (by position, for unfinished players) ───────────────────────
+  // ── Live rank (by lap then position, for unfinished players) ──────────────
 
   function _liveRank(player) {
     if (player.finished) return player.rank;
-    const ahead = players.filter(p => p !== player && p.position > player.position);
+    const ahead = players.filter(p => p !== player && (
+      p.lap > player.lap ||
+      (p.lap === player.lap && p.position > player.position)
+    ));
     return ahead.length + 1;
   }
 
@@ -162,12 +183,17 @@ function createGame() {
         emoji:      p.emoji,
         position:   Math.round(p.position * 100) / 100,
         speed:      Math.round(p.speed * 100) / 100,
-        progress:   parseFloat((p.position / TRACK_LENGTH).toFixed(4)),  // 0–1
+        progress:   parseFloat(((p.lap - 1 + p.position / TRACK_LENGTH) / TOTAL_LAPS).toFixed(4)),
+        lap:        p.lap,
+        totalLaps:  TOTAL_LAPS,
+        bestLap:    p.bestLap,
+        lapTimes:   p.lapTimes,
         finished:   p.finished,
         rank:       p.finished ? p.rank : _liveRank(p),
         finishTime: p.finishTime,
       })),
       trackLength:  TRACK_LENGTH,
+      totalLaps:    TOTAL_LAPS,
       started,
       over,
       elapsed:      Math.round(elapsed),
@@ -185,11 +211,15 @@ function createGame() {
       emoji:        p.emoji,
       position:     Math.round(p.position * 100) / 100,
       speed:        Math.round(p.speed * 100) / 100,
-      progress:     parseFloat((p.position / TRACK_LENGTH).toFixed(4)),
+      progress:     parseFloat(((p.lap - 1 + p.position / TRACK_LENGTH) / TOTAL_LAPS).toFixed(4)),
+      lap:          p.lap,
+      totalLaps:    TOTAL_LAPS,
+      bestLap:      p.bestLap,
       finished:     p.finished,
       rank:         p.finished ? p.rank : _liveRank(p),
       totalPlayers: players.length,
       lastPedal:    p.lastPedal,
+      finishTime:   p.finishTime,
     };
   }
 
@@ -207,4 +237,4 @@ function createGame() {
   };
 }
 
-module.exports = { createGame, PLAYER_COLORS, PLAYER_EMOJIS, TRACK_LENGTH, MAX_PLAYERS };
+module.exports = { createGame, PLAYER_COLORS, PLAYER_EMOJIS, TRACK_LENGTH, TOTAL_LAPS, MAX_PLAYERS };
