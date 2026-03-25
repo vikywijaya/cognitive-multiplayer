@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 220" width="480" height="220">
+  <!-- Background -->
+  <rect width="480" height="220" fill="#fef3e2"/>
+
+  <!-- Board background -->
+  <rect x="30" y="15" width="245" height="195" rx="8" fill="#fffdf5" stroke="#e0c060" stroke-width="2"/>
+
+  <!-- Alternating coloured squares (5x5 grid partial) -->
+  <g>
+    <!-- Row 5 (bottom) numbers 1-5 -->
+    <rect x="30"  y="155" width="49" height="39" fill="#a8d5a2"/>
+    <rect x="79"  y="155" width="49" height="39" fill="#fffdf5"/>
+    <rect x="128" y="155" width="49" height="39" fill="#a8d5a2"/>
+    <rect x="177" y="155" width="49" height="39" fill="#fffdf5"/>
+    <rect x="226" y="155" width="49" height="39" fill="#a8d5a2"/>
+    <!-- Row 4 -->
+    <rect x="30"  y="116" width="49" height="39" fill="#fffdf5"/>
+    <rect x="79"  y="116" width="49" height="39" fill="#f9e4b7"/>
+    <rect x="128" y="116" width="49" height="39" fill="#fffdf5"/>
+    <rect x="177" y="116" width="49" height="39" fill="#f9e4b7"/>
+    <rect x="226" y="116" width="49" height="39" fill="#fffdf5"/>
+    <!-- Row 3 -->
+    <rect x="30"  y="77"  width="49" height="39" fill="#a8d5a2"/>
+    <rect x="79"  y="77"  width="49" height="39" fill="#fffdf5"/>
+    <rect x="128" y="77"  width="49" height="39" fill="#a8d5a2"/>
+    <rect x="177" y="77"  width="49" height="39" fill="#fffdf5"/>
+    <rect x="226" y="77"  width="49" height="39" fill="#a8d5a2"/>
+    <!-- Row 2 -->
+    <rect x="30"  y="38"  width="49" height="39" fill="#fffdf5"/>
+    <rect x="79"  y="38"  width="49" height="39" fill="#f9e4b7"/>
+    <rect x="128" y="38"  width="49" height="39" fill="#fffdf5"/>
+    <rect x="177" y="38"  width="49" height="39" fill="#f9e4b7"/>
+    <rect x="226" y="38"  width="49" height="39" fill="#fffdf5"/>
+    <!-- Row 1 (top) -->
+    <rect x="30"  y="15"  width="49" height="23" fill="#a8d5a2"/>
+    <rect x="79"  y="15"  width="49" height="23" fill="#fffdf5"/>
+    <rect x="128" y="15"  width="49" height="23" fill="#a8d5a2" rx="6"/>
+    <rect x="177" y="15"  width="49" height="23" fill="#fffdf5"/>
+    <rect x="226" y="15"  width="49" height="23" fill="#ffd700" rx="6"/>
+  </g>
+
+  <!-- Grid lines -->
+  <g stroke="#e0c060" stroke-width="0.8" opacity="0.6">
+    <line x1="79"  y1="15" x2="79"  y2="200"/>
+    <line x1="128" y1="15" x2="128" y2="200"/>
+    <line x1="177" y1="15" x2="177" y2="200"/>
+    <line x1="226" y1="15" x2="226" y2="200"/>
+    <line x1="30"  y1="38"  x2="275" y2="38"/>
+    <line x1="30"  y1="77"  x2="275" y2="77"/>
+    <line x1="30"  y1="116" x2="275" y2="116"/>
+    <line x1="30"  y1="155" x2="275" y2="155"/>
+  </g>
+
+  <!-- Ladder (yellow rungs) from row4 to row1 -->
+  <line x1="152" y1="155" x2="103" y2="38" stroke="#d4a017" stroke-width="4" stroke-linecap="round"/>
+  <line x1="168" y1="155" x2="119" y2="38" stroke="#d4a017" stroke-width="4" stroke-linecap="round"/>
+  <line x1="154" y1="135" x2="107" y2="58"  stroke="#d4a017" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="157" y1="116" x2="111" y2="77"  stroke="#d4a017" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="160" y1="97"  x2="113" y2="97"  stroke="#d4a017" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Snake (red/green curvy) from row2 to row5 -->
+  <path d="M 250 57 Q 230 90 200 97 Q 175 104 190 135 Q 205 155 180 175" stroke="#c0392b" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <!-- Snake head -->
+  <circle cx="250" cy="52" r="9" fill="#27ae60"/>
+  <circle cx="246" cy="49" r="2.5" fill="#111"/>
+  <circle cx="254" cy="49" r="2.5" fill="#111"/>
+  <!-- Snake tongue -->
+  <path d="M 250 61 L 247 66 M 250 61 L 253 66" stroke="red" stroke-width="1.5"/>
+
+  <!-- Player token (red) -->
+  <circle cx="54" cy="135" r="12" fill="#c0392b" stroke="white" stroke-width="2"/>
+  <text x="54" y="140" text-anchor="middle" font-family="Helvetica" font-size="11" fill="white" font-weight="bold">P1</text>
+
+  <!-- Right decorative panel -->
+  <rect x="296" y="20" width="154" height="180" rx="8" fill="#e0c060" opacity="0.10"/>
+
+  <!-- Dice illustration -->
+  <rect x="310" y="40" width="50" height="50" rx="8" fill="white" stroke="#e0c060" stroke-width="2"/>
+  <circle cx="325" cy="55" r="4" fill="#333"/>
+  <circle cx="345" cy="55" r="4" fill="#333"/>
+  <circle cx="325" cy="75" r="4" fill="#333"/>
+  <circle cx="345" cy="75" r="4" fill="#333"/>
+  <circle cx="335" cy="65" r="4" fill="#333"/>
+
+  <rect x="370" y="50" width="50" height="50" rx="8" fill="white" stroke="#e0c060" stroke-width="2"/>
+  <circle cx="395" cy="75" r="5" fill="#333"/>
+
+  <!-- Title badge -->
+  <rect x="300" y="140" width="154" height="40" rx="8" fill="#d4a017"/>
+  <text x="377" y="157" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="bold" fill="white">SNAKES &amp;</text>
+  <text x="377" y="172" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="bold" fill="white">LADDERS</text>
+</svg>

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 220" width="480" height="220">
+  <!-- Background -->
+  <rect width="480" height="220" fill="#d8f0d8"/>
+
+  <!-- Reversi board (8x8, partial 6x6 visible) -->
+  <rect x="40" y="20" width="240" height="185" rx="8" fill="#1a7a1a"/>
+
+  <!-- Grid lines -->
+  <g stroke="#155015" stroke-width="1">
+    <line x1="80"  y1="20" x2="80"  y2="205"/>
+    <line x1="120" y1="20" x2="120" y2="205"/>
+    <line x1="160" y1="20" x2="160" y2="205"/>
+    <line x1="200" y1="20" x2="200" y2="205"/>
+    <line x1="240" y1="20" x2="240" y2="205"/>
+    <line x1="40"  y1="51" x2="280" y2="51"/>
+    <line x1="40"  y1="82" x2="280" y2="82"/>
+    <line x1="40"  y1="113" x2="280" y2="113"/>
+    <line x1="40"  y1="144" x2="280" y2="144"/>
+    <line x1="40"  y1="175" x2="280" y2="175"/>
+  </g>
+
+  <!-- Board dots (corner markers) -->
+  <circle cx="120" cy="82" r="4" fill="#155015"/>
+  <circle cx="200" cy="82" r="4" fill="#155015"/>
+  <circle cx="120" cy="144" r="4" fill="#155015"/>
+  <circle cx="200" cy="144" r="4" fill="#155015"/>
+
+  <!-- Reversi pieces — classic opening + some flipped -->
+  <!-- Black pieces -->
+  <circle cx="160" cy="113" r="16" fill="#111" stroke="#333" stroke-width="1.5"/>
+  <circle cx="200" cy="144" r="16" fill="#111" stroke="#333" stroke-width="1.5"/>
+  <circle cx="120" cy="82"  r="16" fill="#111" stroke="#333" stroke-width="1.5"/>
+  <circle cx="160" cy="51"  r="16" fill="#111" stroke="#333" stroke-width="1.5"/>
+  <circle cx="240" cy="113" r="16" fill="#111" stroke="#333" stroke-width="1.5"/>
+  <circle cx="80"  cy="144" r="16" fill="#111" stroke="#333" stroke-width="1.5"/>
+
+  <!-- White pieces -->
+  <circle cx="200" cy="113" r="16" fill="white" stroke="#ccc" stroke-width="1.5"/>
+  <circle cx="160" cy="144" r="16" fill="white" stroke="#ccc" stroke-width="1.5"/>
+  <circle cx="200" cy="82"  r="16" fill="white" stroke="#ccc" stroke-width="1.5"/>
+  <circle cx="120" cy="144" r="16" fill="white" stroke="#ccc" stroke-width="1.5"/>
+  <circle cx="80"  cy="113" r="16" fill="white" stroke="#ccc" stroke-width="1.5"/>
+  <circle cx="240" cy="82"  r="16" fill="white" stroke="#ccc" stroke-width="1.5"/>
+
+  <!-- Flipping piece (mid-flip effect) -->
+  <ellipse cx="120" cy="113" rx="16" ry="6" fill="#111" stroke="#444" stroke-width="1"/>
+
+  <!-- Right decorative panel -->
+  <rect x="296" y="20" width="154" height="180" rx="8" fill="#1a7a1a" opacity="0.10"/>
+
+  <!-- Big reversi disc silhouette -->
+  <circle cx="373" cy="120" r="60" fill="none" stroke="#1a7a1a" stroke-width="3" opacity="0.20"/>
+  <circle cx="373" cy="120" r="45" fill="#111" opacity="0.15"/>
+
+  <!-- Score display -->
+  <rect x="310" y="50" width="126" height="44" rx="8" fill="#1a7a1a"/>
+  <text x="345" y="69" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="white" opacity="0.8">⚫ BLACK</text>
+  <text x="345" y="86" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="bold" fill="white">28</text>
+  <text x="396" y="69" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="11" fill="white" opacity="0.8">⚪ WHITE</text>
+  <text x="396" y="86" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="bold" fill="white">36</text>
+
+  <!-- Title badge -->
+  <rect x="310" y="145" width="126" height="32" rx="16" fill="#1a7a1a"/>
+  <text x="373" y="166" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="bold" fill="white">REVERSI</text>
+</svg>

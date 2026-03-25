@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 220" width="480" height="220">
+  <!-- Background -->
+  <rect width="480" height="220" fill="#0d1b2e"/>
+
+  <!-- TV screen frame -->
+  <rect x="30" y="18" width="240" height="160" rx="12" fill="#1a2a40" stroke="#3a5a80" stroke-width="3"/>
+  <rect x="38" y="26" width="224" height="144" rx="8" fill="#0a2040"/>
+
+  <!-- Boggle grid on TV (4x4) -->
+  <g>
+    <!-- Row 1 -->
+    <rect x="50" y="35" width="40" height="40" rx="5" fill="#1e3a5f" stroke="#3a70b0" stroke-width="1.5"/>
+    <text x="70" y="62" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="white">W</text>
+    <rect x="96" y="35" width="40" height="40" rx="5" fill="#1e3a5f" stroke="#3a70b0" stroke-width="1.5"/>
+    <text x="116" y="62" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="#ffd700">O</text>
+    <rect x="142" y="35" width="40" height="40" rx="5" fill="#1e3a5f" stroke="#3a70b0" stroke-width="1.5"/>
+    <text x="162" y="62" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="#ffd700">R</text>
+    <rect x="188" y="35" width="40" height="40" rx="5" fill="#1e3a5f" stroke="#3a70b0" stroke-width="1.5"/>
+    <text x="208" y="62" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="white">T</text>
+    <!-- Row 2 -->
+    <rect x="50" y="81" width="40" height="40" rx="5" fill="#1e3a5f" stroke="#3a70b0" stroke-width="1.5"/>
+    <text x="70" y="108" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="white">A</text>
+    <rect x="96" y="81" width="40" height="40" rx="5" fill="#1e3a5f" stroke="#3a70b0" stroke-width="1.5"/>
+    <text x="116" y="108" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="#ffd700">D</text>
+    <rect x="142" y="81" width="40" height="40" rx="5" fill="#ffd700" stroke="#ffaa00" stroke-width="1.5"/>
+    <text x="162" y="108" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="#111">S</text>
+    <rect x="188" y="81" width="40" height="40" rx="5" fill="#1e3a5f" stroke="#3a70b0" stroke-width="1.5"/>
+    <text x="208" y="108" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="white">N</text>
+    <!-- Row 3 -->
+    <rect x="50"  y="127" width="40" height="40" rx="5" fill="#1e3a5f" stroke="#3a70b0" stroke-width="1.5"/>
+    <text x="70"  y="154" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="white">P</text>
+    <rect x="96"  y="127" width="40" height="40" rx="5" fill="#1e3a5f" stroke="#3a70b0" stroke-width="1.5"/>
+    <text x="116" y="154" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="white">L</text>
+    <rect x="142" y="127" width="40" height="40" rx="5" fill="#1e3a5f" stroke="#3a70b0" stroke-width="1.5"/>
+    <text x="162" y="154" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="white">E</text>
+    <rect x="188" y="127" width="40" height="40" rx="5" fill="#1e3a5f" stroke="#3a70b0" stroke-width="1.5"/>
+    <text x="208" y="154" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="white">G</text>
+  </g>
+
+  <!-- Word highlight path -->
+  <polyline points="116,55 162,55 162,101" stroke="#ffd700" stroke-width="3" fill="none" opacity="0.6" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- TV stand -->
+  <rect x="118" y="178" width="24" height="14" rx="2" fill="#3a5a80"/>
+  <rect x="100" y="190" width="60" height="8" rx="4" fill="#3a5a80"/>
+
+  <!-- Phone/mobile device -->
+  <rect x="255" y="60" width="38" height="68" rx="6" fill="#1a2a40" stroke="#3a5a80" stroke-width="2"/>
+  <rect x="259" y="66" width="30" height="50" rx="3" fill="#0a2040"/>
+  <text x="274" y="97" text-anchor="middle" font-family="Helvetica" font-size="9" fill="#ffd700" font-weight="bold">TYPE</text>
+  <text x="274" y="108" text-anchor="middle" font-family="Helvetica" font-size="9" fill="white">WORD</text>
+  <rect x="265" y="135" width="18" height="5" rx="2.5" fill="#3a5a80"/>
+
+  <!-- Right decorative panel -->
+  <rect x="296" y="20" width="154" height="180" rx="8" fill="#ffffff" opacity="0.04"/>
+
+  <!-- Word list -->
+  <rect x="308" y="38" width="130" height="18" rx="9" fill="#27ae60" opacity="0.9"/>
+  <text x="373" y="51" text-anchor="middle" font-family="Helvetica" font-size="11" fill="white" font-weight="bold">WORD ✓</text>
+
+  <rect x="308" y="62" width="130" height="18" rx="9" fill="#2255cc" opacity="0.9"/>
+  <text x="373" y="75" text-anchor="middle" font-family="Helvetica" font-size="11" fill="white" font-weight="bold">WORDS ✓</text>
+
+  <rect x="308" y="86" width="130" height="18" rx="9" fill="#2255cc" opacity="0.9"/>
+  <text x="373" y="99" text-anchor="middle" font-family="Helvetica" font-size="11" fill="white" font-weight="bold">SWORD ✓</text>
+
+  <!-- Timer -->
+  <circle cx="373" cy="145" r="28" fill="none" stroke="#ffd700" stroke-width="4" opacity="0.8"/>
+  <circle cx="373" cy="145" r="28" fill="none" stroke="#1a2a40" stroke-width="4" stroke-dasharray="88 176" opacity="0.4"/>
+  <text x="373" y="142" text-anchor="middle" font-family="Helvetica" font-size="11" fill="white">TIME</text>
+  <text x="373" y="157" text-anchor="middle" font-family="Helvetica" font-size="14" font-weight="bold" fill="#ffd700">0:42</text>
+
+  <!-- Title badge -->
+  <rect x="305" y="185" width="140" height="22" rx="11" fill="#2255cc"/>
+  <text x="375" y="200" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="bold" fill="white">TV BOGGLE</text>
+</svg>

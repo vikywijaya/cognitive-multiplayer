@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 220" width="480" height="220">
+  <!-- Sky gradient background -->
+  <defs>
+    <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0d1b4e"/>
+      <stop offset="100%" stop-color="#1a3a6e"/>
+    </linearGradient>
+    <linearGradient id="roadGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2a2a2a"/>
+      <stop offset="100%" stop-color="#1a1a1a"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="220" fill="url(#skyGrad)"/>
+
+  <!-- Stars -->
+  <circle cx="50"  cy="25" r="1.5" fill="white" opacity="0.6"/>
+  <circle cx="120" cy="15" r="1"   fill="white" opacity="0.5"/>
+  <circle cx="80"  cy="40" r="1"   fill="white" opacity="0.4"/>
+  <circle cx="200" cy="20" r="1.5" fill="white" opacity="0.6"/>
+  <circle cx="155" cy="35" r="1"   fill="white" opacity="0.5"/>
+
+  <!-- Road -->
+  <rect x="0" y="145" width="290" height="55" fill="url(#roadGrad)"/>
+  <rect x="0" y="140" width="290" height="8" fill="#555" opacity="0.5"/>
+
+  <!-- Road lane markings -->
+  <g fill="#888" opacity="0.5">
+    <rect x="20"  y="163" width="30" height="4" rx="2"/>
+    <rect x="70"  y="163" width="30" height="4" rx="2"/>
+    <rect x="120" y="163" width="30" height="4" rx="2"/>
+    <rect x="170" y="163" width="30" height="4" rx="2"/>
+    <rect x="220" y="163" width="30" height="4" rx="2"/>
+  </g>
+
+  <!-- Race track lanes (3 lanes on screen) -->
+  <line x1="0" y1="175" x2="290" y2="175" stroke="#555" stroke-width="1" stroke-dasharray="8,8"/>
+  <line x1="0" y1="152" x2="290" y2="152" stroke="#555" stroke-width="1" stroke-dasharray="8,8"/>
+
+  <!-- Rider 1 (front, lane 1) - blue cyclist -->
+  <!-- Wheels -->
+  <circle cx="110" cy="148" r="16" fill="none" stroke="#4488ff" stroke-width="3"/>
+  <circle cx="110" cy="148" r="3"  fill="#4488ff"/>
+  <circle cx="155" cy="148" r="16" fill="none" stroke="#4488ff" stroke-width="3"/>
+  <circle cx="155" cy="148" r="3"  fill="#4488ff"/>
+  <!-- Frame -->
+  <line x1="110" y1="148" x2="132" y2="127" stroke="#4488ff" stroke-width="2.5"/>
+  <line x1="155" y1="148" x2="132" y2="127" stroke="#4488ff" stroke-width="2.5"/>
+  <line x1="110" y1="148" x2="138" y2="140" stroke="#4488ff" stroke-width="2.5"/>
+  <line x1="138" y1="140" x2="155" y2="148" stroke="#4488ff" stroke-width="2.5"/>
+  <!-- Handlebars -->
+  <line x1="155" y1="148" x2="168" y2="132" stroke="#4488ff" stroke-width="2"/>
+  <line x1="165" y1="128" x2="172" y2="132" stroke="#4488ff" stroke-width="2"/>
+  <!-- Rider body -->
+  <circle cx="136" cy="118" r="9" fill="#ffcc44"/>
+  <path d="M 136 127 Q 128 135 125 143" stroke="#c0392b" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M 136 127 Q 148 132 155 140" stroke="#c0392b" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+  <!-- Rider 2 (behind, lane 2) - red cyclist, smaller -->
+  <circle cx="55"  cy="165" r="13" fill="none" stroke="#ff4444" stroke-width="2.5"/>
+  <circle cx="55"  cy="165" r="2.5" fill="#ff4444"/>
+  <circle cx="92"  cy="165" r="13" fill="none" stroke="#ff4444" stroke-width="2.5"/>
+  <circle cx="92"  cy="165" r="2.5" fill="#ff4444"/>
+  <line x1="55"  y1="165" x2="72" y2="148" stroke="#ff4444" stroke-width="2"/>
+  <line x1="92"  y1="165" x2="72" y2="148" stroke="#ff4444" stroke-width="2"/>
+  <line x1="55"  y1="165" x2="78" y2="158" stroke="#ff4444" stroke-width="2"/>
+  <line x1="78"  y1="158" x2="92" y2="165" stroke="#ff4444" stroke-width="2"/>
+  <circle cx="75"  cy="138" r="7" fill="#88ff88"/>
+
+  <!-- Speed lines -->
+  <g stroke="#88bbff" stroke-width="1.5" stroke-linecap="round" opacity="0.5">
+    <line x1="28" y1="130" x2="58" y2="130"/>
+    <line x1="20" y1="140" x2="50" y2="140"/>
+    <line x1="25" y1="150" x2="55" y2="150"/>
+  </g>
+
+  <!-- Finish flag hint -->
+  <line x1="270" y1="110" x2="270" y2="195" stroke="white" stroke-width="2"/>
+  <rect x="270" y="110" width="20" height="10" fill="#111"/>
+  <rect x="280" y="110" width="10" height="5"  fill="white"/>
+  <rect x="270" y="115" width="10" height="5"  fill="white"/>
+  <rect x="280" y="115" width="10" height="5"  fill="#111"/>
+
+  <!-- Right decorative panel -->
+  <rect x="296" y="20" width="154" height="180" rx="8" fill="#4488ff" opacity="0.08"/>
+
+  <!-- Race positions -->
+  <text x="373" y="52" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="26">🏆</text>
+
+  <rect x="308" y="65" width="130" height="26" rx="13" fill="#ffd700" opacity="0.9"/>
+  <text x="373" y="82" text-anchor="middle" font-family="Helvetica" font-size="12" font-weight="bold" fill="#111">🚴 1ST  Player A</text>
+
+  <rect x="308" y="98" width="130" height="26" rx="13" fill="#aaaaaa" opacity="0.9"/>
+  <text x="373" y="115" text-anchor="middle" font-family="Helvetica" font-size="12" font-weight="bold" fill="white">🚴 2ND  Player B</text>
+
+  <rect x="308" y="131" width="130" height="26" rx="13" fill="#cd7f32" opacity="0.9"/>
+  <text x="373" y="148" text-anchor="middle" font-family="Helvetica" font-size="12" font-weight="bold" fill="white">🚴 3RD  Player C</text>
+
+  <!-- Title badge -->
+  <rect x="308" y="175" width="130" height="28" rx="14" fill="#2255cc"/>
+  <text x="373" y="187" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="10" font-weight="bold" fill="white">TV BIKE RACE</text>
+  <text x="373" y="198" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="8" fill="white" opacity="0.8">TAP TO PEDAL!</text>
+</svg>
